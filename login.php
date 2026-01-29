@@ -1,4 +1,6 @@
 <?php
+session_start();
+
 require_once 'config.php';
 
 // Jika sudah login, redirect ke dashboard
@@ -8,12 +10,11 @@ if (isset($_SESSION['user_id'])) {
 }
 
 $error = '';
-
 // Proses Login
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
-    
+   
     if (empty($username) || empty($password)) {
         $error = 'Username dan password harus diisi!';
     } else {
@@ -22,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt->bind_param("s", $username);
         $stmt->execute();
         $result = $stmt->get_result();
+         
         
         if ($user = $result->fetch_assoc()) {
             // Password default: password (untuk demo, gunakan password_verify untuk production)
@@ -43,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $conn->close();
     }
 }
+
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -73,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <i class="fas fa-exclamation-circle"></i>
                 <span><?= $error ?></span>
             </div>
-            <?php endif; ?>
+            <?php  endif; ?>
             
             <form method="POST" action="">
                 <div class="mb-4">
