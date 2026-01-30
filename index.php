@@ -61,68 +61,161 @@ while ($row = $chartData->fetch_assoc()) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - PPOB Express</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .sidebar { transition: transform 0.3s ease; }
-        .sidebar.closed { transform: translateX(-100%); }
-        @media (min-width: 768px) { .sidebar.closed { transform: translateX(0); } }
-        .menu-item.active { background: rgba(255,255,255,0.2); }
+        /* Custom CSS untuk tema minimalis */
+        :root {
+            --primary-blue: #2563eb;
+            --secondary-blue: #3b82f6;
+            --light-blue: #eff6ff;
+            --dark-blue: #1e40af;
+        }
+        
+        .sidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+        }
+        
+        .sidebar.closed {
+            transform: translateX(-100%);
+        }
+        
+        @media (min-width: 768px) {
+            .sidebar {
+                transform: translateX(0);
+            }
+            .sidebar.closed {
+                transform: translateX(0);
+            }
+        }
+        
+        .menu-item {
+            transition: all 0.2s ease;
+            border-radius: 0.5rem;
+        }
+        
+        .menu-item.active {
+            background-color: var(--light-blue);
+            color: var(--primary-blue);
+            font-weight: 600;
+            border-left: 4px solid var(--primary-blue);
+        }
+        
+        .menu-item:hover:not(.active) {
+            background-color: #f8fafc;
+            color: var(--primary-blue);
+        }
+        
+        .card {
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
+            transition: box-shadow 0.3s ease;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .card:hover {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-card {
+            border-top: 4px solid;
+        }
+        
+        .quick-menu-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+        }
+        
+        .status-badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+        }
+        
+        .header-shadow {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        
+        .bg-gradient-custom {
+            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--dark-blue) 100%);
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-50 font-sans">
     <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <aside id="sidebar" class="sidebar fixed md:relative z-30 w-64 h-full bg-gradient-to-b from-indigo-600 to-purple-700 text-white flex flex-col">
-            <div class="p-5 border-b border-white/20">
-                <h1 class="text-xl font-bold flex items-center gap-2">
-                    <i class="fas fa-wallet"></i>
-                    PPOB Express
+        <!-- Sidebar - Minimalis putih dengan aksen biru -->
+        <aside id="sidebar" class="sidebar fixed md:relative z-30 w-64 h-full bg-white border-r border-gray-200 flex flex-col">
+            <div class="p-5 border-b border-gray-100">
+                <h1 class="text-xl font-bold flex items-center gap-2 text-gray-800">
+                    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-wallet text-white text-sm"></i>
+                    </div>
+                    <span>PPOB<span class="text-blue-600">Express</span></span>
                 </h1>
             </div>
             
             <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
-                <a href="index.php" class="menu-item active flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
+                <a href="index.php" class="menu-item active flex items-center gap-3 px-4 py-3 text-gray-700">
                     <i class="fas fa-home w-5"></i>
                     <span>Dashboard</span>
                 </a>
-                <a href="pulsa.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
+                <a href="pulsa.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
                     <i class="fas fa-mobile-alt w-5"></i>
                     <span>Isi Pulsa</span>
                 </a>
-                <a href="kuota.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
+                <a href="kuota.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
                     <i class="fas fa-wifi w-5"></i>
                     <span>Paket Data</span>
                 </a>
-                <a href="listrik.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
+                <a href="listrik.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
                     <i class="fas fa-bolt w-5"></i>
                     <span>Token Listrik</span>
                 </a>
-                <a href="transfer.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
+                <a href="transfer.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
                     <i class="fas fa-money-bill-transfer w-5"></i>
                     <span>Transfer Tunai</span>
                 </a>
-                <a href="riwayat.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
+                <a href="riwayat.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
                     <i class="fas fa-history w-5"></i>
                     <span>Riwayat Transaksi</span>
                 </a>
-                <a href="deposit.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
+                <a href="deposit.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
                     <i class="fas fa-plus-circle w-5"></i>
                     <span>Deposit Saldo</span>
                 </a>
                 <?php if ($role == 'admin'): ?>
-                <div class="pt-4 mt-4 border-t border-white/20">
-                    <p class="px-4 text-xs text-white/60 uppercase tracking-wider mb-2">Admin Menu</p>
-                    <a href="kelola_user.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
+                <div class="pt-4 mt-4 border-t border-gray-100">
+                    <p class="px-4 text-xs text-gray-500 uppercase tracking-wider mb-2 font-semibold">Admin Menu</p>
+                    <a href="kelola_user.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
                         <i class="fas fa-users w-5"></i>
                         <span>Kelola User</span>
                     </a>
-                    <a href="kelola_produk.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
+                    <a href="kelola_produk.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
                         <i class="fas fa-box w-5"></i>
                         <span>Kelola Produk</span>
                     </a>
-                    <a href="laporan.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
+                    <a href="laporan.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
                         <i class="fas fa-chart-bar w-5"></i>
                         <span>Laporan</span>
                     </a>
@@ -130,16 +223,16 @@ while ($row = $chartData->fetch_assoc()) {
                 <?php endif; ?>
             </nav>
             
-            <div class="p-4 border-t border-white/20">
+            <div class="p-4 border-t border-gray-100 bg-gray-50">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                        <i class="fas fa-user"></i>
+                    <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-user text-blue-600"></i>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="font-semibold truncate"><?= $_SESSION['nama_lengkap'] ?></p>
-                        <p class="text-xs text-white/70"><?= ucfirst($_SESSION['role']) ?></p>
+                        <p class="font-semibold text-gray-800 truncate"><?= $_SESSION['nama_lengkap'] ?></p>
+                        <p class="text-xs text-gray-500"><?= ucfirst($_SESSION['role']) ?></p>
                     </div>
-                    <a href="logout.php" class="text-white/70 hover:text-white" title="Logout">
+                    <a href="logout.php" class="text-gray-500 hover:text-blue-600 transition" title="Logout">
                         <i class="fas fa-sign-out-alt"></i>
                     </a>
                 </div>
@@ -147,24 +240,24 @@ while ($row = $chartData->fetch_assoc()) {
         </aside>
         
         <!-- Overlay Mobile -->
-        <div id="overlay" class="fixed inset-0 bg-black/50 z-20 hidden md:hidden" onclick="toggleSidebar()"></div>
+        <div id="overlay" class="fixed inset-0 bg-black/30 z-20 hidden md:hidden" onclick="toggleSidebar()"></div>
         
         <!-- Main Content -->
-        <main class="flex-1 overflow-y-auto">
+        <main class="flex-1 overflow-y-auto bg-gray-50">
             <!-- Header -->
-            <header class="bg-white shadow-sm sticky top-0 z-10">
+            <header class="bg-white header-shadow sticky top-0 z-10">
                 <div class="flex items-center justify-between px-4 py-3">
                     <div class="flex items-center gap-3">
-                        <button onclick="toggleSidebar()" class="md:hidden text-gray-600 hover:text-gray-800">
-                            <i class="fas fa-bars text-xl"></i>
+                        <button onclick="toggleSidebar()" class="md:hidden text-gray-600 hover:text-blue-600">
+                            <i class="fas fa-bars text-lg"></i>
                         </button>
                         <h2 class="text-lg font-semibold text-gray-800">Dashboard</h2>
                     </div>
                     <div class="flex items-center gap-3">
                         <!-- Saldo Card -->
-                        <div class="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-lg">
-                            <p class="text-xs opacity-80">Saldo</p>
-                            <p class="font-bold"><?= rupiah($_SESSION['saldo']) ?></p>
+                        <div class="bg-blue-50 border border-blue-100 px-4 py-2 rounded-lg">
+                            <p class="text-xs text-gray-600">Saldo</p>
+                            <p class="font-bold text-blue-700"><?= rupiah($_SESSION['saldo']) ?></p>
                         </div>
                     </div>
                 </div>
@@ -173,58 +266,58 @@ while ($row = $chartData->fetch_assoc()) {
             <!-- Content -->
             <div class="p-4 md:p-6">
                 <!-- Welcome -->
-                <div class="mb-6">
-                    <h2 class="text-xl md:text-2xl font-bold text-gray-800">Selamat Datang, <?= $_SESSION['nama_lengkap'] ?>! 👋</h2>
-                    <p class="text-gray-600 text-sm md:text-base">Apa yang ingin Anda lakukan hari ini?</p>
+                <div class="mb-8">
+                    <h2 class="text-2xl font-bold text-gray-900">Selamat Datang, <?= $_SESSION['nama_lengkap'] ?>! 👋</h2>
+                    <p class="text-gray-600 mt-1">Kelola layanan PPOB Anda dengan mudah dan cepat</p>
                 </div>
                 
                 <?php if ($role == 'admin'): ?>
                 <!-- Admin Stats -->
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-blue-500">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <div class="card stat-card p-5 border-t-blue-500">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-gray-500 text-xs md:text-sm">Total Member</p>
-                                <p class="text-xl md:text-2xl font-bold text-gray-800"><?= number_format($totalUser) ?></p>
+                                <p class="text-gray-500 text-sm">Total Member</p>
+                                <p class="text-2xl font-bold text-gray-900 mt-1"><?= number_format($totalUser) ?></p>
                             </div>
-                            <div class="bg-blue-100 p-3 rounded-full">
-                                <i class="fas fa-users text-blue-500"></i>
+                            <div class="p-3 rounded-full bg-blue-50">
+                                <i class="fas fa-users text-blue-600 text-lg"></i>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-500">
+                    <div class="card stat-card p-5 border-t-green-500">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-gray-500 text-xs md:text-sm">Trx Hari Ini</p>
-                                <p class="text-xl md:text-2xl font-bold text-gray-800"><?= number_format($transaksiHariIni) ?></p>
+                                <p class="text-gray-500 text-sm">Transaksi Hari Ini</p>
+                                <p class="text-2xl font-bold text-gray-900 mt-1"><?= number_format($transaksiHariIni) ?></p>
                             </div>
-                            <div class="bg-green-100 p-3 rounded-full">
-                                <i class="fas fa-receipt text-green-500"></i>
+                            <div class="p-3 rounded-full bg-green-50">
+                                <i class="fas fa-receipt text-green-600 text-lg"></i>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-yellow-500">
+                    <div class="card stat-card p-5 border-t-amber-500">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-gray-500 text-xs md:text-sm">Omset Bulan Ini</p>
-                                <p class="text-lg md:text-xl font-bold text-gray-800"><?= rupiah($pendapatanBulanIni) ?></p>
+                                <p class="text-gray-500 text-sm">Omset Bulan Ini</p>
+                                <p class="text-xl font-bold text-gray-900 mt-1"><?= rupiah($pendapatanBulanIni) ?></p>
                             </div>
-                            <div class="bg-yellow-100 p-3 rounded-full">
-                                <i class="fas fa-coins text-yellow-500"></i>
+                            <div class="p-3 rounded-full bg-amber-50">
+                                <i class="fas fa-coins text-amber-600 text-lg"></i>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-purple-500">
+                    <div class="card stat-card p-5 border-t-indigo-500">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-gray-500 text-xs md:text-sm">Profit Bulan Ini</p>
-                                <p class="text-lg md:text-xl font-bold text-gray-800"><?= rupiah($profitBulanIni) ?></p>
+                                <p class="text-gray-500 text-sm">Profit Bulan Ini</p>
+                                <p class="text-xl font-bold text-gray-900 mt-1"><?= rupiah($profitBulanIni) ?></p>
                             </div>
-                            <div class="bg-purple-100 p-3 rounded-full">
-                                <i class="fas fa-chart-line text-purple-500"></i>
+                            <div class="p-3 rounded-full bg-indigo-50">
+                                <i class="fas fa-chart-line text-indigo-600 text-lg"></i>
                             </div>
                         </div>
                     </div>
@@ -232,63 +325,72 @@ while ($row = $chartData->fetch_assoc()) {
                 <?php endif; ?>
                 
                 <!-- Quick Menu -->
-                <div class="bg-white rounded-xl shadow-sm p-4 md:p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Menu Layanan</h3>
-                    <div class="grid grid-cols-4 gap-3 md:gap-6">
-                        <a href="pulsa.php" class="flex flex-col items-center p-3 md:p-4 rounded-xl hover:bg-blue-50 transition group">
-                            <div class="w-12 h-12 md:w-16 md:h-16 bg-blue-100 rounded-full flex items-center justify-center mb-2 group-hover:bg-blue-200 transition">
-                                <i class="fas fa-mobile-alt text-xl md:text-2xl text-blue-600"></i>
+                <div class="card p-6 mb-8">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-6">Layanan Cepat</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <a href="pulsa.php" class="quick-menu-item flex flex-col items-center p-5 bg-white border border-gray-200 rounded-xl hover:border-blue-300 transition-all duration-300">
+                            <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mb-3">
+                                <i class="fas fa-mobile-alt text-xl text-blue-600"></i>
                             </div>
-                            <span class="text-xs md:text-sm text-gray-700 text-center font-medium">Pulsa</span>
+                            <span class="text-sm font-medium text-gray-800">Pulsa</span>
+                            <span class="text-xs text-gray-500 mt-1">Isi pulsa cepat</span>
                         </a>
-                        <a href="kuota.php" class="flex flex-col items-center p-3 md:p-4 rounded-xl hover:bg-green-50 transition group">
-                            <div class="w-12 h-12 md:w-16 md:h-16 bg-green-100 rounded-full flex items-center justify-center mb-2 group-hover:bg-green-200 transition">
-                                <i class="fas fa-wifi text-xl md:text-2xl text-green-600"></i>
+                        <a href="kuota.php" class="quick-menu-item flex flex-col items-center p-5 bg-white border border-gray-200 rounded-xl hover:border-green-300 transition-all duration-300">
+                            <div class="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center mb-3">
+                                <i class="fas fa-wifi text-xl text-green-600"></i>
                             </div>
-                            <span class="text-xs md:text-sm text-gray-700 text-center font-medium">Kuota</span>
+                            <span class="text-sm font-medium text-gray-800">Kuota</span>
+                            <span class="text-xs text-gray-500 mt-1">Paket data</span>
                         </a>
-                        <a href="listrik.php" class="flex flex-col items-center p-3 md:p-4 rounded-xl hover:bg-yellow-50 transition group">
-                            <div class="w-12 h-12 md:w-16 md:h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-2 group-hover:bg-yellow-200 transition">
-                                <i class="fas fa-bolt text-xl md:text-2xl text-yellow-600"></i>
+                        <a href="listrik.php" class="quick-menu-item flex flex-col items-center p-5 bg-white border border-gray-200 rounded-xl hover:border-amber-300 transition-all duration-300">
+                            <div class="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mb-3">
+                                <i class="fas fa-bolt text-xl text-amber-600"></i>
                             </div>
-                            <span class="text-xs md:text-sm text-gray-700 text-center font-medium">Listrik</span>
+                            <span class="text-sm font-medium text-gray-800">Listrik</span>
+                            <span class="text-xs text-gray-500 mt-1">Token PLN</span>
                         </a>
-                        <a href="transfer.php" class="flex flex-col items-center p-3 md:p-4 rounded-xl hover:bg-purple-50 transition group">
-                            <div class="w-12 h-12 md:w-16 md:h-16 bg-purple-100 rounded-full flex items-center justify-center mb-2 group-hover:bg-purple-200 transition">
-                                <i class="fas fa-money-bill-transfer text-xl md:text-2xl text-purple-600"></i>
+                        <a href="transfer.php" class="quick-menu-item flex flex-col items-center p-5 bg-white border border-gray-200 rounded-xl hover:border-purple-300 transition-all duration-300">
+                            <div class="w-14 h-14 bg-purple-50 rounded-full flex items-center justify-center mb-3">
+                                <i class="fas fa-money-bill-transfer text-xl text-purple-600"></i>
                             </div>
-                            <span class="text-xs md:text-sm text-gray-700 text-center font-medium">Transfer</span>
+                            <span class="text-sm font-medium text-gray-800">Transfer</span>
+                            <span class="text-xs text-gray-500 mt-1">Kirim uang</span>
                         </a>
                     </div>
                 </div>
                 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Chart -->
+                    <!-- Chart untuk Admin -->
                     <?php if ($role == 'admin'): ?>
-                    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-4 md:p-6">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Transaksi 7 Hari Terakhir</h3>
-                        <canvas id="transaksiChart" height="200"></canvas>
+                    <div class="lg:col-span-2 card p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-semibold text-gray-900">Statistik Transaksi 7 Hari Terakhir</h3>
+                            <span class="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Total: <?= rupiah(array_sum($chartValues)) ?></span>
+                        </div>
+                        <canvas id="transaksiChart" height="250"></canvas>
                     </div>
                     <?php endif; ?>
                     
                     <!-- Transaksi Terakhir -->
-                    <div class="<?= $role == 'admin' ? '' : 'lg:col-span-2' ?> bg-white rounded-xl shadow-sm p-4 md:p-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-semibold text-gray-800">Transaksi Terakhir</h3>
-                            <a href="riwayat.php" class="text-indigo-600 hover:text-indigo-800 text-sm">Lihat Semua</a>
+                    <div class="<?= $role == 'admin' ? '' : 'lg:col-span-2' ?> card p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-semibold text-gray-900">Transaksi Terakhir</h3>
+                            <a href="riwayat.php" class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
+                                Lihat Semua <i class="fas fa-chevron-right text-xs"></i>
+                            </a>
                         </div>
-                        <div class="space-y-3">
+                        <div class="space-y-4">
                             <?php if ($transaksiTerakhir->num_rows > 0): ?>
                                 <?php while ($trx = $transaksiTerakhir->fetch_assoc()): ?>
-                                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div class="flex items-center justify-between p-4 bg-gray-50 border border-gray-100 rounded-lg">
                                     <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 rounded-full flex items-center justify-center
+                                        <div class="w-12 h-12 rounded-lg flex items-center justify-center
                                             <?php 
                                             switch($trx['jenis_transaksi']) {
-                                                case 'pulsa': echo 'bg-blue-100'; break;
-                                                case 'kuota': echo 'bg-green-100'; break;
-                                                case 'listrik': echo 'bg-yellow-100'; break;
-                                                case 'transfer': echo 'bg-purple-100'; break;
+                                                case 'pulsa': echo 'bg-blue-50'; break;
+                                                case 'kuota': echo 'bg-green-50'; break;
+                                                case 'listrik': echo 'bg-amber-50'; break;
+                                                case 'transfer': echo 'bg-purple-50'; break;
                                             }
                                             ?>">
                                             <i class="fas 
@@ -296,24 +398,25 @@ while ($row = $chartData->fetch_assoc()) {
                                                 switch($trx['jenis_transaksi']) {
                                                     case 'pulsa': echo 'fa-mobile-alt text-blue-600'; break;
                                                     case 'kuota': echo 'fa-wifi text-green-600'; break;
-                                                    case 'listrik': echo 'fa-bolt text-yellow-600'; break;
+                                                    case 'listrik': echo 'fa-bolt text-amber-600'; break;
                                                     case 'transfer': echo 'fa-money-bill-transfer text-purple-600'; break;
                                                 }
                                                 ?>"></i>
                                         </div>
                                         <div>
-                                            <p class="font-medium text-gray-800 text-sm"><?= $trx['nama_produk'] ?? ucfirst($trx['jenis_transaksi']) ?></p>
-                                            <p class="text-xs text-gray-500"><?= $trx['no_tujuan'] ?></p>
+                                            <p class="font-semibold text-gray-800 text-sm"><?= $trx['nama_produk'] ?? ucfirst($trx['jenis_transaksi']) ?></p>
+                                            <p class="text-xs text-gray-500 mt-0.5"><?= $trx['no_tujuan'] ?></p>
+                                            <p class="text-xs text-gray-500"><?= date('d M Y H:i', strtotime($trx['created_at'])) ?></p>
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <p class="font-semibold text-gray-800 text-sm"><?= rupiah($trx['total_bayar']) ?></p>
-                                        <span class="text-xs px-2 py-0.5 rounded-full 
+                                        <p class="font-bold text-gray-900"><?= rupiah($trx['total_bayar']) ?></p>
+                                        <span class="status-badge inline-block mt-1
                                             <?php 
                                             switch($trx['status']) {
-                                                case 'success': echo 'bg-green-100 text-green-600'; break;
-                                                case 'pending': echo 'bg-yellow-100 text-yellow-600'; break;
-                                                case 'failed': echo 'bg-red-100 text-red-600'; break;
+                                                case 'success': echo 'bg-green-50 text-green-700 border border-green-200'; break;
+                                                case 'pending': echo 'bg-amber-50 text-amber-700 border border-amber-200'; break;
+                                                case 'failed': echo 'bg-red-50 text-red-700 border border-red-200'; break;
                                             }
                                             ?>">
                                             <?= ucfirst($trx['status']) ?>
@@ -322,53 +425,121 @@ while ($row = $chartData->fetch_assoc()) {
                                 </div>
                                 <?php endwhile; ?>
                             <?php else: ?>
-                                <p class="text-gray-500 text-center py-4">Belum ada transaksi</p>
+                                <div class="text-center py-8">
+                                    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <i class="fas fa-receipt text-gray-400 text-xl"></i>
+                                    </div>
+                                    <p class="text-gray-500">Belum ada transaksi</p>
+                                    <p class="text-sm text-gray-400 mt-1">Mulai transaksi pertama Anda</p>
+                                </div>
                             <?php endif; ?>
                         </div>
                     </div>
                     
                     <!-- Promo Banner -->
-                    <div class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-sm p-6 text-white">
-                        <h3 class="text-lg font-bold mb-2">🎉 Promo Spesial!</h3>
-                        <p class="text-sm text-white/90 mb-4">Dapatkan cashback hingga 10% untuk setiap pembelian pulsa minimal Rp 50.000</p>
-                        <a href="pulsa.php" class="inline-block bg-white text-indigo-600 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-gray-100 transition">
-                            Beli Sekarang
+                    <div class="bg-gradient-custom rounded-xl p-6 text-white">
+                        <div class="mb-4">
+                            <span class="bg-white/20 text-xs px-3 py-1 rounded-full">Promo</span>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2">🎉 Cashback 10%!</h3>
+                        <p class="text-white/90 text-sm mb-5">Khusus pembelian pulsa minimal Rp 50.000. Berlaku hingga 31 Desember.</p>
+                        <a href="pulsa.php" class="inline-flex items-center justify-center bg-white text-blue-700 px-4 py-3 rounded-lg font-semibold text-sm hover:bg-gray-50 transition shadow-sm w-full">
+                            <i class="fas fa-bolt mr-2"></i> Beli Sekarang
                         </a>
                     </div>
                 </div>
             </div>
             
             <!-- Footer -->
-            <footer class="bg-white border-t mt-6 p-4 text-center text-gray-500 text-sm">
-                <p>&copy; <?= date('Y') ?> PPOB Express. All rights reserved.</p>
+            <footer class="bg-white border-t border-gray-200 mt-8 px-6 py-4">
+                <div class="flex flex-col md:flex-row justify-between items-center">
+                    <p class="text-gray-600 text-sm">&copy; <?= date('Y') ?> PPOB Express. All rights reserved.</p>
+                    <div class="flex gap-4 mt-2 md:mt-0">
+                        <a href="#" class="text-gray-500 hover:text-blue-600 text-sm">Kebijakan Privasi</a>
+                        <a href="#" class="text-gray-500 hover:text-blue-600 text-sm">Syarat & Ketentuan</a>
+                        <a href="#" class="text-gray-500 hover:text-blue-600 text-sm">Bantuan</a>
+                    </div>
+                </div>
             </footer>
         </main>
     </div>
     
     <script>
         function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('closed');
-            document.getElementById('overlay').classList.toggle('hidden');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            sidebar.classList.toggle('closed');
+            overlay.classList.toggle('hidden');
         }
+        
+        // Close sidebar when clicking on menu item on mobile
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth < 768) {
+                    toggleSidebar();
+                }
+            });
+        });
         
         <?php if ($role == 'admin' && !empty($chartLabels)): ?>
         // Chart Transaksi
         const ctx = document.getElementById('transaksiChart').getContext('2d');
         new Chart(ctx, {
-            type: 'bar',
+            type: 'line',
             data: {
                 labels: <?= json_encode($chartLabels) ?>,
                 datasets: [{
                     label: 'Total Transaksi (Rp)',
                     data: <?= json_encode($chartValues) ?>,
-                    backgroundColor: 'rgba(99, 102, 241, 0.8)',
-                    borderRadius: 8
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    borderColor: 'rgb(37, 99, 235)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: 'rgb(37, 99, 235)',
+                    pointRadius: 4,
+                    pointHoverRadius: 6
                 }]
             },
             options: {
                 responsive: true,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } }
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { 
+                        display: false 
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: { size: 13 },
+                        bodyFont: { size: 13 }
+                    }
+                },
+                scales: { 
+                    y: { 
+                        beginAtZero: true,
+                        grid: {
+                            drawBorder: false,
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return 'Rp ' + value.toLocaleString('id-ID');
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'nearest'
+                }
             }
         });
         <?php endif; ?>

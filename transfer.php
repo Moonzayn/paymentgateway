@@ -95,177 +95,471 @@ $alert = getAlert();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transfer Tunai - PPOB Express</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .sidebar { transition: transform 0.3s ease; }
-        .sidebar.closed { transform: translateX(-100%); }
-        @media (min-width: 768px) { .sidebar.closed { transform: translateX(0); } }
-        .bank-option.selected { border-color: #8b5cf6; background-color: #f5f3ff; }
+        /* Custom CSS konsisten dengan tema */
+        :root {
+            --primary-blue: #2563eb;
+            --secondary-blue: #3b82f6;
+            --light-blue: #eff6ff;
+            --purple-500: #8b5cf6;
+            --purple-600: #7c3aed;
+        }
+        
+        .sidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+        }
+        
+        .sidebar.closed {
+            transform: translateX(-100%);
+        }
+        
+        @media (min-width: 768px) {
+            .sidebar {
+                transform: translateX(0);
+            }
+            .sidebar.closed {
+                transform: translateX(0);
+            }
+        }
+        
+        .menu-item {
+            transition: all 0.2s ease;
+            border-radius: 0.5rem;
+        }
+        
+        .menu-item.active {
+            background-color: var(--light-blue);
+            color: var(--primary-blue);
+            font-weight: 600;
+            border-left: 4px solid var(--primary-blue);
+        }
+        
+        .menu-item:hover:not(.active) {
+            background-color: #f8fafc;
+            color: var(--primary-blue);
+        }
+        
+        .card {
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .bank-card {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .bank-card:hover {
+            border-color: var(--purple-500);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
+        }
+        
+        .bank-card.selected {
+            border-color: var(--purple-500);
+            background-color: #f5f3ff;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+        }
+        
+        .input-field {
+            transition: all 0.2s ease;
+        }
+        
+        .input-field:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .btn-primary {
+            background-color: var(--purple-500);
+            color: white;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--purple-600);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+        
+        .alert {
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .bank-icon {
+            width: 48px;
+            height: 48px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .summary-card {
+            background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+            border: 1px solid #ddd6fe;
+        }
+        
+        .summary-total {
+            background: linear-gradient(135deg, var(--purple-500) 0%, var(--purple-600) 100%);
+            color: white;
+        }
+        
+        .quick-amount {
+            transition: all 0.2s ease;
+        }
+        
+        .quick-amount:hover {
+            background-color: var(--light-blue);
+            border-color: var(--primary-blue);
+        }
+        
+        .quick-amount.selected {
+            background-color: var(--light-blue);
+            border-color: var(--primary-blue);
+            color: var(--primary-blue);
+            font-weight: 600;
+        }
+        
+        /* New layout for better UX */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+        
+        @media (min-width: 1024px) {
+            .main-container {
+                grid-template-columns: 2fr 1fr;
+            }
+        }
+        
+        .form-section {
+            order: 1;
+        }
+        
+        .summary-section {
+            order: 2;
+        }
+        
+        @media (min-width: 1024px) {
+            .form-section {
+                order: 1;
+            }
+            .summary-section {
+                order: 2;
+                position: sticky;
+                top: 1rem;
+                align-self: start;
+            }
+        }
+        
+        .validation-error {
+            border-color: #ef4444;
+            background-color: #fef2f2;
+        }
+        
+        .validation-error:focus {
+            border-color: #ef4444;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+        }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-50 font-sans">
     <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <aside id="sidebar" class="sidebar fixed md:relative z-30 w-64 h-full bg-gradient-to-b from-indigo-600 to-purple-700 text-white flex flex-col">
-            <div class="p-5 border-b border-white/20">
-                <h1 class="text-xl font-bold flex items-center gap-2">
-                    <i class="fas fa-wallet"></i>
-                    PPOB Express
+        <!-- Sidebar Minimalis -->
+        <aside id="sidebar" class="sidebar fixed md:relative z-30 w-64 h-full bg-white border-r border-gray-200 flex flex-col">
+            <div class="p-5 border-b border-gray-100">
+                <h1 class="text-xl font-bold flex items-center gap-2 text-gray-800">
+                    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-wallet text-white text-sm"></i>
+                    </div>
+                    <span>PPOB<span class="text-blue-600">Express</span></span>
                 </h1>
             </div>
             
             <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
-                <a href="index.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
-                    <i class="fas fa-home w-5"></i><span>Dashboard</span>
+                <a href="index.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
+                    <i class="fas fa-home w-5"></i>
+                    <span>Dashboard</span>
                 </a>
-                <a href="pulsa.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
-                    <i class="fas fa-mobile-alt w-5"></i><span>Isi Pulsa</span>
+                <a href="pulsa.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
+                    <i class="fas fa-mobile-alt w-5"></i>
+                    <span>Isi Pulsa</span>
                 </a>
-                <a href="kuota.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
-                    <i class="fas fa-wifi w-5"></i><span>Paket Data</span>
+                <a href="kuota.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
+                    <i class="fas fa-wifi w-5"></i>
+                    <span>Paket Data</span>
                 </a>
-                <a href="listrik.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
-                    <i class="fas fa-bolt w-5"></i><span>Token Listrik</span>
+                <a href="listrik.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
+                    <i class="fas fa-bolt w-5"></i>
+                    <span>Token Listrik</span>
                 </a>
-                <a href="transfer.php" class="menu-item active flex items-center gap-3 px-4 py-3 rounded-lg bg-white/20 transition">
-                    <i class="fas fa-money-bill-transfer w-5"></i><span>Transfer Tunai</span>
+                <a href="transfer.php" class="menu-item active flex items-center gap-3 px-4 py-3 text-gray-700">
+                    <i class="fas fa-money-bill-transfer w-5"></i>
+                    <span>Transfer Tunai</span>
                 </a>
-                <a href="riwayat.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
-                    <i class="fas fa-history w-5"></i><span>Riwayat Transaksi</span>
+                <a href="riwayat.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
+                    <i class="fas fa-history w-5"></i>
+                    <span>Riwayat Transaksi</span>
                 </a>
-                <a href="deposit.php" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/20 transition">
-                    <i class="fas fa-plus-circle w-5"></i><span>Deposit Saldo</span>
+                <a href="deposit.php" class="menu-item flex items-center gap-3 px-4 py-3 text-gray-700">
+                    <i class="fas fa-plus-circle w-5"></i>
+                    <span>Deposit Saldo</span>
                 </a>
             </nav>
             
-            <div class="p-4 border-t border-white/20">
+            <div class="p-4 border-t border-gray-100 bg-gray-50">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center"><i class="fas fa-user"></i></div>
-                    <div class="flex-1 min-w-0">
-                        <p class="font-semibold truncate"><?= $_SESSION['nama_lengkap'] ?></p>
-                        <p class="text-xs text-white/70"><?= ucfirst($_SESSION['role']) ?></p>
+                    <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-user text-blue-600"></i>
                     </div>
-                    <a href="logout.php" class="text-white/70 hover:text-white"><i class="fas fa-sign-out-alt"></i></a>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-semibold text-gray-800 truncate"><?= $_SESSION['nama_lengkap'] ?></p>
+                        <p class="text-xs text-gray-500"><?= ucfirst($_SESSION['role']) ?></p>
+                    </div>
+                    <a href="logout.php" class="text-gray-500 hover:text-blue-600 transition" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </a>
                 </div>
             </div>
         </aside>
         
-        <div id="overlay" class="fixed inset-0 bg-black/50 z-20 hidden md:hidden" onclick="toggleSidebar()"></div>
+        <div id="overlay" class="fixed inset-0 bg-black/30 z-20 hidden md:hidden" onclick="toggleSidebar()"></div>
         
         <!-- Main Content -->
         <main class="flex-1 overflow-y-auto">
             <header class="bg-white shadow-sm sticky top-0 z-10">
                 <div class="flex items-center justify-between px-4 py-3">
                     <div class="flex items-center gap-3">
-                        <button onclick="toggleSidebar()" class="md:hidden text-gray-600"><i class="fas fa-bars text-xl"></i></button>
-                        <h2 class="text-lg font-semibold text-gray-800">Transfer Tunai</h2>
+                        <button onclick="toggleSidebar()" class="md:hidden text-gray-600 hover:text-blue-600">
+                            <i class="fas fa-bars text-lg"></i>
+                        </button>
+                        <div>
+                            <h2 class="text-lg font-semibold text-gray-800">Transfer Tunai</h2>
+                            <p class="text-sm text-gray-500">Transfer ke berbagai bank dan e-wallet</p>
+                        </div>
                     </div>
-                    <div class="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-lg">
-                        <p class="text-xs opacity-80">Saldo</p>
-                        <p class="font-bold"><?= rupiah($_SESSION['saldo']) ?></p>
+                    <div class="bg-blue-50 border border-blue-100 px-4 py-2 rounded-lg">
+                        <p class="text-xs text-gray-600">Saldo Tersedia</p>
+                        <p class="font-bold text-blue-700"><?= rupiah($_SESSION['saldo']) ?></p>
                     </div>
                 </div>
             </header>
             
-            <div class="p-4 md:p-6">
+            <div class="p-4 md:p-6 max-w-7xl mx-auto">
                 <?php if ($alert): ?>
-                <div class="mb-4 p-4 rounded-lg flex items-center gap-3 <?= $alert['type'] == 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' ?>">
-                    <i class="fas <?= $alert['type'] == 'success' ? 'fa-check-circle' : 'fa-exclamation-circle' ?>"></i>
-                    <span><?= $alert['message'] ?></span>
+                <div class="alert mb-4 p-4 rounded-lg flex items-center gap-3 <?= $alert['type'] == 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200' ?>">
+                    <i class="fas <?= $alert['type'] == 'success' ? 'fa-check-circle text-green-500' : 'fa-exclamation-circle text-red-500' ?> text-lg"></i>
+                    <span class="font-medium"><?= $alert['message'] ?></span>
                 </div>
                 <?php endif; ?>
                 
-                <form method="POST" action="" id="formTransfer">
-                    <!-- Pilih Bank -->
-                    <div class="bg-white rounded-xl shadow-sm p-4 md:p-6 mb-6">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Pilih Bank / E-Wallet Tujuan</h3>
-                        <input type="hidden" name="bank" id="bank" value="">
-                        
-                        <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
-                            <?php foreach ($daftarBank as $kode => $nama): ?>
-                            <div class="bank-option border-2 border-gray-200 rounded-lg p-3 cursor-pointer hover:border-purple-400 transition text-center"
-                                 onclick="selectBank('<?= $kode ?>', '<?= $nama ?>')">
-                                <div class="w-10 h-10 bg-gray-100 rounded-full mx-auto mb-2 flex items-center justify-center">
-                                    <span class="font-bold text-xs text-gray-700"><?= substr($kode, 0, 3) ?></span>
+                <div class="main-container">
+                    <!-- Form Section -->
+                    <div class="form-section space-y-6">
+                        <form method="POST" action="" id="formTransfer" class="space-y-6">
+                            <!-- Pilih Bank -->
+                            <div class="card p-6">
+                                <div class="flex items-center gap-3 mb-6">
+                                    <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-building-columns text-xl text-purple-600"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-gray-900">Pilih Bank / E-Wallet Tujuan</h3>
+                                        <p class="text-sm text-gray-500">Pilih bank atau e-wallet untuk transfer</p>
+                                    </div>
                                 </div>
-                                <p class="text-xs text-gray-600 truncate"><?= $kode ?></p>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                    
-                    <!-- Detail Transfer -->
-                    <div class="bg-white rounded-xl shadow-sm p-4 md:p-6 mb-6">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Detail Transfer</h3>
-                        
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">Nomor Rekening</label>
-                                <div class="relative">
-                                    <i class="fas fa-credit-card absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                                    <input type="text" name="no_rekening" id="no_rekening" 
-                                           class="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                           placeholder="Masukkan nomor rekening" required>
+                                
+                                <input type="hidden" name="bank" id="bank" value="">
+                                <input type="hidden" id="bankName" value="">
+                                
+                                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                                    <?php foreach ($daftarBank as $kode => $nama): 
+                                        $isEWallet = in_array($kode, ['DANA', 'OVO', 'GoPay', 'ShopeePay']);
+                                        $iconClass = $isEWallet ? 'bg-pink-100 text-pink-600' : 'bg-blue-100 text-blue-600';
+                                    ?>
+                                    <div class="bank-card card p-3 text-center"
+                                         onclick="selectBank('<?= $kode ?>', '<?= $nama ?>')">
+                                        <div class="bank-icon <?= $iconClass ?> rounded-full mx-auto mb-2 flex items-center justify-center">
+                                            <i class="fas <?= $isEWallet ? 'fa-mobile-screen' : 'fa-landmark' ?>"></i>
+                                        </div>
+                                        <p class="text-sm font-medium text-gray-900"><?= $kode ?></p>
+                                        <p class="text-xs text-gray-500 truncate" title="<?= $nama ?>"><?= $isEWallet ? 'E-Wallet' : substr($nama, 0, 12) . (strlen($nama) > 12 ? '...' : '') ?></p>
+                                    </div>
+                                    <?php endforeach; ?>
                                 </div>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">Nama Penerima</label>
-                                <div class="relative">
-                                    <i class="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                                    <input type="text" name="nama_penerima" id="nama_penerima" 
-                                           class="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                           placeholder="Nama sesuai rekening" required>
+                                
+                                <div id="selectedBankDisplay" class="hidden mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                                    <p class="text-sm text-gray-600">Bank terpilih:</p>
+                                    <p class="font-semibold text-purple-700" id="bankTujuanText">-</p>
                                 </div>
                             </div>
                             
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">Nominal Transfer</label>
-                                <div class="relative">
-                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">Rp</span>
-                                    <input type="text" name="nominal" id="nominal" 
-                                           class="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                           placeholder="0" required oninput="formatNominal(this); calculateTotal();">
+                            <!-- Detail Transfer -->
+                            <div class="card p-6">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-6">Detail Transfer</h3>
+                                
+                                <div class="space-y-5">
+                                    <div>
+                                        <label class="block font-medium text-gray-900 mb-2 flex items-center gap-1">
+                                            <i class="fas fa-credit-card text-gray-400 text-sm"></i>
+                                            Nomor Rekening / Akun
+                                        </label>
+                                        <input type="text" 
+                                               name="no_rekening" 
+                                               id="no_rekening" 
+                                               class="input-field w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none"
+                                               placeholder="Contoh: 1234567890" 
+                                               required
+                                               oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                                        <p class="text-xs text-gray-500 mt-1">Masukkan nomor rekening atau nomor akun e-wallet</p>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block font-medium text-gray-900 mb-2 flex items-center gap-1">
+                                            <i class="fas fa-user text-gray-400 text-sm"></i>
+                                            Nama Penerima
+                                        </label>
+                                        <input type="text" 
+                                               name="nama_penerima" 
+                                               id="nama_penerima" 
+                                               class="input-field w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none"
+                                               placeholder="Nama sesuai rekening / akun" 
+                                               required>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block font-medium text-gray-900 mb-2 flex items-center gap-1">
+                                            <i class="fas fa-money-bill-wave text-gray-400 text-sm"></i>
+                                            Nominal Transfer
+                                        </label>
+                                        <div class="relative">
+                                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">Rp</span>
+                                            <input type="text" 
+                                                   name="nominal" 
+                                                   id="nominal" 
+                                                   class="input-field w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none"
+                                                   placeholder="0" 
+                                                   required 
+                                                   oninput="formatNominal(this); calculateTotal();">
+                                        </div>
+                                        <div class="mt-3">
+                                            <p class="text-xs text-gray-500 mb-2">Pilih nominal cepat:</p>
+                                            <div class="flex flex-wrap gap-2">
+                                                <button type="button" onclick="setNominal(50000)" class="quick-amount text-xs px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">50.000</button>
+                                                <button type="button" onclick="setNominal(100000)" class="quick-amount text-xs px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">100.000</button>
+                                                <button type="button" onclick="setNominal(200000)" class="quick-amount text-xs px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">200.000</button>
+                                                <button type="button" onclick="setNominal(500000)" class="quick-amount text-xs px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">500.000</button>
+                                                <button type="button" onclick="setNominal(1000000)" class="quick-amount text-xs px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">1.000.000</button>
+                                            </div>
+                                        </div>
+                                        <div class="flex justify-between mt-3">
+                                            <p class="text-xs text-gray-500">
+                                                <i class="fas fa-info-circle mr-1"></i>
+                                                Minimal: <?= rupiah($minTransfer) ?>
+                                            </p>
+                                            <p class="text-xs text-gray-500">
+                                                Maksimal: <?= rupiah($maxTransfer) ?>
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <p class="text-xs text-gray-500 mt-1">Min: <?= rupiah($minTransfer) ?> | Max: <?= rupiah($maxTransfer) ?></p>
                             </div>
-                        </div>
+                        </form>
                     </div>
                     
-                    <!-- Summary -->
-                    <div class="bg-white rounded-xl shadow-sm p-4 md:p-6 sticky bottom-4">
-                        <div class="space-y-2 mb-4">
-                            <div class="flex justify-between text-gray-600">
-                                <span>Bank Tujuan:</span>
-                                <span id="bankTujuan" class="font-medium">-</span>
-                            </div>
-                            <div class="flex justify-between text-gray-600">
-                                <span>Nominal Transfer:</span>
-                                <span id="nominalDisplay" class="font-medium">Rp 0</span>
-                            </div>
-                            <div class="flex justify-between text-gray-600">
-                                <span>Biaya Admin:</span>
-                                <span class="font-medium"><?= rupiah($biayaAdmin) ?></span>
-                            </div>
-                            <hr>
-                            <div class="flex justify-between text-lg font-bold">
-                                <span>Total Bayar:</span>
-                                <span id="totalBayar" class="text-purple-600">Rp 0</span>
+                    <!-- Summary Section -->
+                    <div class="summary-section">
+                        <div class="card p-6 summary-card">
+                            <h4 class="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                                <i class="fas fa-receipt text-purple-600"></i>
+                                Ringkasan Transfer
+                            </h4>
+                            
+                            <div class="space-y-4">
+                                <div class="flex justify-between items-center pb-3 border-b border-purple-200">
+                                    <span class="text-sm text-gray-600">Bank Tujuan</span>
+                                    <span id="summaryBank" class="font-medium text-gray-900 text-right">Belum dipilih</span>
+                                </div>
+                                
+                                <div class="flex justify-between items-center pb-3 border-b border-purple-200">
+                                    <span class="text-sm text-gray-600">Nominal Transfer</span>
+                                    <span id="summaryNominal" class="font-medium text-gray-900">Rp 0</span>
+                                </div>
+                                
+                                <div class="flex justify-between items-center pb-3 border-b border-purple-200">
+                                    <span class="text-sm text-gray-600">Biaya Admin</span>
+                                    <span class="font-medium text-gray-900"><?= rupiah($biayaAdmin) ?></span>
+                                </div>
+                                
+                                <div class="rounded-lg p-4 summary-total">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-semibold">Total Bayar</span>
+                                        <span id="summaryTotal" class="text-xl font-bold">Rp 0</span>
+                                    </div>
+                                    <p class="text-xs opacity-90 mt-1">Dipotong dari saldo Anda</p>
+                                </div>
+                                
+                                <div class="pt-4">
+                                    <div class="flex gap-3">
+                                        <button type="button" onclick="resetForm()" class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition">
+                                            <i class="fas fa-redo mr-2"></i> Reset
+                                        </button>
+                                        <button type="submit" form="formTransfer" class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2">
+                                            <i class="fas fa-paper-plane"></i>
+                                            Transfer Sekarang
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                        <p class="text-xs text-gray-600">
+                                            <i class="fas fa-shield-alt text-blue-500 mr-1"></i>
+                                            Transfer akan diproses secara instan
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <button type="submit" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-indigo-700 transition flex items-center justify-center gap-2">
-                            <i class="fas fa-paper-plane"></i>
-                            Transfer Sekarang
-                        </button>
+                        
+                        <!-- Info Box -->
+                        <div class="card p-4 mt-4 bg-yellow-50 border border-yellow-200">
+                            <div class="flex items-start gap-3">
+                                <i class="fas fa-lightbulb text-yellow-600 mt-1"></i>
+                                <div>
+                                    <p class="text-sm font-medium text-yellow-800 mb-1">Tips Transfer Aman</p>
+                                    <ul class="text-xs text-yellow-700 space-y-1">
+                                        <li>• Pastikan nomor rekening benar</li>
+                                        <li>• Nama penerima sesuai dengan rekening</li>
+                                        <li>• Cek saldo Anda sebelum transfer</li>
+                                        <li>• Simpan invoice sebagai bukti</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </form>
+                </div>
             </div>
         </main>
     </div>
     
     <script>
         const biayaAdmin = <?= $biayaAdmin ?>;
+        const minTransfer = <?= $minTransfer ?>;
+        const maxTransfer = <?= $maxTransfer ?>;
         
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('closed');
@@ -273,29 +567,213 @@ $alert = getAlert();
         }
         
         function selectBank(kode, nama) {
-            document.querySelectorAll('.bank-option').forEach(el => el.classList.remove('selected'));
-            event.currentTarget.classList.add('selected');
+            // Remove all selections
+            document.querySelectorAll('.bank-card').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Add selection to clicked card
+            const card = event.currentTarget;
+            card.classList.add('selected');
+            
+            // Update form values
             document.getElementById('bank').value = kode;
-            document.getElementById('bankTujuan').textContent = nama;
+            document.getElementById('bankName').value = nama;
+            
+            // Update displays
+            document.getElementById('bankTujuanText').textContent = `${nama} (${kode})`;
+            document.getElementById('summaryBank').textContent = kode;
+            document.getElementById('selectedBankDisplay').classList.remove('hidden');
+            
+            // Remove any existing bank validation errors
+            const bankInput = document.getElementById('bank');
+            if (bankInput.parentElement.classList.contains('validation-error')) {
+                bankInput.parentElement.classList.remove('validation-error');
+            }
+        }
+        
+        function setNominal(nominal) {
+            // Remove all quick amount selections
+            document.querySelectorAll('.quick-amount').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Add selection to clicked button
+            event.currentTarget.classList.add('selected');
+            
+            // Set the nominal
+            const input = document.getElementById('nominal');
+            input.value = nominal.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            
+            // Validate and calculate
+            formatNominal(input);
+            calculateTotal();
         }
         
         function formatNominal(input) {
             let value = input.value.replace(/[^0-9]/g, '');
+            let num = parseInt(value) || 0;
+            
+            // Remove existing validation classes
+            input.classList.remove('validation-error', 'border-red-500');
+            
+            // Validate min/max
+            if (num > 0) {
+                if (num < minTransfer) {
+                    input.classList.add('validation-error', 'border-red-500');
+                } else if (num > maxTransfer) {
+                    input.classList.add('validation-error', 'border-red-500');
+                } else {
+                    input.classList.add('border-gray-300');
+                }
+            }
+            
             input.value = value.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
         }
         
         function calculateTotal() {
-            let nominal = parseInt(document.getElementById('nominal').value.replace(/\./g, '')) || 0;
+            let nominalValue = document.getElementById('nominal').value;
+            let nominal = parseInt(nominalValue.replace(/\./g, '')) || 0;
             let total = nominal + biayaAdmin;
             
-            document.getElementById('nominalDisplay').textContent = formatRupiah(nominal);
-            document.getElementById('totalBayar').textContent = formatRupiah(total);
+            // Update displays
+            document.getElementById('summaryNominal').textContent = formatRupiah(nominal);
+            document.getElementById('summaryTotal').textContent = formatRupiah(total);
         }
         
         function formatRupiah(num) {
             return 'Rp ' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
         }
+        
+        function resetForm() {
+            // Reset bank selection
+            document.querySelectorAll('.bank-card').forEach(el => {
+                el.classList.remove('selected');
+            });
+            document.getElementById('bank').value = '';
+            document.getElementById('bankName').value = '';
+            document.getElementById('selectedBankDisplay').classList.add('hidden');
+            document.getElementById('summaryBank').textContent = 'Belum dipilih';
+            
+            // Reset quick amounts
+            document.querySelectorAll('.quick-amount').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Reset form fields
+            document.getElementById('no_rekening').value = '';
+            document.getElementById('nama_penerima').value = '';
+            document.getElementById('nominal').value = '';
+            document.getElementById('nominal').classList.remove('validation-error', 'border-red-500');
+            document.getElementById('nominal').classList.add('border-gray-300');
+            
+            // Reset summary
+            document.getElementById('summaryNominal').textContent = 'Rp 0';
+            document.getElementById('summaryTotal').textContent = 'Rp 0';
+            
+            // Focus on bank selection
+            const firstBank = document.querySelector('.bank-card');
+            if (firstBank) {
+                firstBank.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+        
+        // Form validation
+        document.getElementById('formTransfer').addEventListener('submit', function(e) {
+            const bank = document.getElementById('bank').value;
+            const noRekening = document.getElementById('no_rekening').value.trim();
+            const namaPenerima = document.getElementById('nama_penerima').value.trim();
+            const nominalValue = document.getElementById('nominal').value;
+            const nominal = parseInt(nominalValue.replace(/\./g, '')) || 0;
+            
+            let isValid = true;
+            let errorMessage = '';
+            let errorElement = null;
+            
+            // Validate bank
+            if (!bank) {
+                errorMessage = 'Silakan pilih bank tujuan';
+                isValid = false;
+                errorElement = document.querySelector('.bank-card');
+            } 
+            // Validate rekening number
+            else if (noRekening.length < 8) {
+                errorMessage = 'Nomor rekening minimal 8 digit';
+                isValid = false;
+                errorElement = document.getElementById('no_rekening');
+            } 
+            // Validate recipient name
+            else if (!namaPenerima) {
+                errorMessage = 'Masukkan nama penerima';
+                isValid = false;
+                errorElement = document.getElementById('nama_penerima');
+            } 
+            // Validate amount
+            else if (nominal < minTransfer) {
+                errorMessage = `Minimal transfer ${formatRupiah(minTransfer)}`;
+                isValid = false;
+                errorElement = document.getElementById('nominal');
+            } else if (nominal > maxTransfer) {
+                errorMessage = `Maksimal transfer ${formatRupiah(maxTransfer)}`;
+                isValid = false;
+                errorElement = document.getElementById('nominal');
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+                
+                // Add visual error to the element
+                if (errorElement) {
+                    errorElement.classList.add('validation-error');
+                    if (errorElement.tagName === 'INPUT') {
+                        errorElement.classList.add('border-red-500');
+                    }
+                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    errorElement.focus();
+                }
+                
+                // Show error message
+                alert('Error: ' + errorMessage);
+            } else {
+                // Final confirmation
+                const bankName = document.getElementById('bankName').value;
+                const total = nominal + biayaAdmin;
+                
+                if (!confirm(`Konfirmasi Transfer:\n\nBank: ${bankName}\nRekening: ${noRekening}\nPenerima: ${namaPenerima}\nNominal: ${formatRupiah(nominal)}\nBiaya Admin: ${formatRupiah(biayaAdmin)}\nTotal: ${formatRupiah(total)}\n\nLanjutkan?`)) {
+                    e.preventDefault();
+                }
+            }
+        });
+        
+        // Remove validation error on input
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', function() {
+                this.classList.remove('validation-error', 'border-red-500');
+            });
+        });
+        
+        // Close sidebar on menu click (mobile)
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth < 768) {
+                    toggleSidebar();
+                }
+            });
+        });
+        
+        // Initialize calculations
+        calculateTotal();
+        
+        // Auto-select bank on enter key in rekening field
+        document.getElementById('no_rekening').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('nama_penerima').focus();
+            }
+        });
     </script>
 </body>
 </html>
-<?php $conn->close(); ?>
+<?php 
+$conn->close();
+?>
