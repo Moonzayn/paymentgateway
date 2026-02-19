@@ -1,26 +1,104 @@
 <?php
 // =============================================
-// KONFIGURASI DATABASE PPOB
+// KONFIGURASI DATABASE PPOB - SECURED
 // =============================================
+
+// Security: Define secure session parameters BEFORE session_start
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_secure', isset($_SERVER['HTTPS']));
+ini_set('session.cookie_samesite', 'Strict');
+ini_set('session.use_strict_mode', 1);
+ini_set('session.gc_maxlifetime', 3600); // 1 hour
+
+// Start Session dengan keamanan
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+    
+    // Regenerate session ID periodically for security
+    if (!isset($_SESSION['created'])) {
+        $_SESSION['created'] = time();
+    } else if (time() - $_SESSION['created'] > 1800) {
+        // Regenerate session ID every 30 minutes
+        session_regenerate_id(true);
+        $_SESSION['created'] = time();
+    }
+    
+    // Initialize CSRF token if not exists
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+}
 
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 define('DB_NAME', 'db_ppob');
 
+// Security Constants
+define('MAX_LOGIN_ATTEMPTS', 5);
+define('LOGIN_TIMEOUT', 900); // 15 minutes
+
 // Koneksi Database
 function koneksi() {
     $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
     if ($conn->connect_error) {
-        die("Koneksi gagal: " . $conn->connect_error);
+        error_log("Database connection failed: " . $conn->connect_error);
+        die("Sistem sedang maintenance. Silakan coba lagi nanti.");
     }
     $conn->set_charset("utf8mb4");
     return $conn;
 }
 
-// Start Session
-if (session_status() == PHP_SESSION_NONE) {
-    session_start();
+// CSRF Token Functions
+function generateCSRFToken() {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function validateCSRFToken($token) {
+    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+}
+
+// Rate Limiting for Login
+function checkLoginAttempts($identifier) {
+    if (!isset($_SESSION['login_attempts'])) {
+        $_SESSION['login_attempts'] = [];
+    }
+    
+    $now = time();
+    $key = md5($identifier);
+    
+    if (isset($_SESSION['login_attempts'][$key])) {
+        $attempts = $_SESSION['login_attempts'][$key];
+        
+        // Clear old attempts
+        $attempts = array_filter($attempts, function($time) use ($now) {
+            return $now - $time < LOGIN_TIMEOUT;
+        });
+        
+        if (count($attempts) >= MAX_LOGIN_ATTEMPTS) {
+            return false;
+        }
+        
+        $_SESSION['login_attempts'][$key] = $attempts;
+    }
+    
+    return true;
+}
+
+function recordLoginAttempt($identifier) {
+    $key = md5($identifier);
+    if (!isset($_SESSION['login_attempts'][$key])) {
+        $_SESSION['login_attempts'][$key] = [];
+    }
+    $_SESSION['login_attempts'][$key][] = time();
+}
+
+function clearLoginAttempts($identifier) {
+    $key = md5($identifier);
+    unset($_SESSION['login_attempts'][$key]);
 }
 
 // Cek Login

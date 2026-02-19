@@ -70,6 +70,14 @@ $providers = $conn->query("SELECT DISTINCT provider FROM produk WHERE provider I
 
 // Tambah produk baru
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'add') {
+    // Validasi CSRF token
+    $csrf_token = $_POST['csrf_token'] ?? '';
+    if (!validateCSRFToken($csrf_token)) {
+        setAlert('error', 'Sesi tidak valid. Silakan refresh halaman.');
+        header("Location: kelola_produk.php");
+        exit;
+    }
+    
     $kode_produk = trim($_POST['kode_produk'] ?? '');
     $nama_produk = trim($_POST['nama_produk'] ?? '');
     $kategori_id = intval($_POST['kategori_id'] ?? 0);
@@ -112,6 +120,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
 
 // Update produk
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'update') {
+    // Validasi CSRF token
+    $csrf_token = $_POST['csrf_token'] ?? '';
+    if (!validateCSRFToken($csrf_token)) {
+        setAlert('error', 'Sesi tidak valid. Silakan refresh halaman.');
+        header("Location: kelola_produk.php");
+        exit;
+    }
+    
     $produk_id = intval($_POST['produk_id'] ?? 0);
     $kode_produk = trim($_POST['kode_produk'] ?? '');
     $nama_produk = trim($_POST['nama_produk'] ?? '');
@@ -156,6 +172,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
 
 // Delete produk
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'delete') {
+    // Validasi CSRF token
+    $csrf_token = $_POST['csrf_token'] ?? '';
+    if (!validateCSRFToken($csrf_token)) {
+        setAlert('error', 'Sesi tidak valid. Silakan refresh halaman.');
+        header("Location: kelola_produk.php");
+        exit;
+    }
+    
     $produk_id = intval($_POST['produk_id'] ?? 0);
     
     if ($produk_id == 0) {
@@ -187,6 +211,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
 
 // Update status produk
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'update_status') {
+    // Validasi CSRF token
+    $csrf_token = $_POST['csrf_token'] ?? '';
+    if (!validateCSRFToken($csrf_token)) {
+        setAlert('error', 'Sesi tidak valid. Silakan refresh halaman.');
+        header("Location: kelola_produk.php");
+        exit;
+    }
+    
     $produk_id = intval($_POST['produk_id'] ?? 0);
     $status = $_POST['status'] ?? 'active';
     
@@ -209,6 +241,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
 
 // Mass update harga
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'mass_update') {
+    // Validasi CSRF token
+    $csrf_token = $_POST['csrf_token'] ?? '';
+    if (!validateCSRFToken($csrf_token)) {
+        setAlert('error', 'Sesi tidak valid. Silakan refresh halaman.');
+        header("Location: kelola_produk.php");
+        exit;
+    }
+    
     $kategori_id = intval($_POST['kategori_id'] ?? 0);
     $provider = trim($_POST['provider'] ?? '');
     $increase_type = $_POST['increase_type'] ?? 'percent';
@@ -319,6 +359,15 @@ $alert = getAlert();
             .sidebar.closed {
                 transform: translateX(0);
             }
+        }
+        
+        /* Toggle Button Animation */
+        .toggle-btn {
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+        
+        .toggle-btn:active {
+            transform: scale(0.95);
         }
         
         .menu-item {
@@ -593,7 +642,7 @@ $alert = getAlert();
             <header class="bg-white shadow-sm sticky top-0 z-10 sticky-header">
                 <div class="flex items-center justify-between px-4 py-3">
                     <div class="flex items-center gap-3">
-                        <button onclick="toggleSidebar()" class="md:hidden text-gray-600 hover:text-blue-600">
+                        <button onclick="toggleSidebar()" class="toggle-btn text-gray-600 hover:text-blue-600 hover:bg-gray-100 p-2 rounded-lg" title="Toggle Sidebar">
                             <i class="fas fa-bars text-lg"></i>
                         </button>
                         <div>
@@ -601,7 +650,7 @@ $alert = getAlert();
                             <p class="text-sm text-gray-500">Kelola produk pulsa, kuota, dan listrik</p>
                         </div>
                     </div>
-                    <div class="flex gap-2">
+                    <!-- <div class="flex gap-2">
                         <button onclick="openModal('massUpdateModal')" class="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2">
                             <i class="fas fa-percentage"></i>
                             Update Massal
@@ -610,7 +659,7 @@ $alert = getAlert();
                             <i class="fas fa-plus"></i>
                             Tambah Produk
                         </button>
-                    </div>
+                    </div> -->
                 </div>
             </header>
             
@@ -840,10 +889,11 @@ $alert = getAlert();
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <form method="POST" action="" class="inline">
+                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                                             <input type="hidden" name="action" value="update_status">
                                             <input type="hidden" name="produk_id" value="<?= $p['id'] ?>">
                                             <input type="hidden" name="status" value="<?= $p['status'] == 'active' ? 'inactive' : 'active' ?>">
-                                            <button type="submit" 
+                                            <button type="submit"
                                                     class="badge badge-<?= $p['status'] ?> hover:opacity-80 transition">
                                                 <?= ucfirst($p['status']) ?>
                                             </button>
@@ -901,6 +951,7 @@ $alert = getAlert();
                 <h3 class="text-lg font-semibold text-gray-900">Tambah Produk Baru</h3>
             </div>
             <form method="POST" action="" class="p-6">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <input type="hidden" name="action" value="add">
                 <div class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
@@ -996,6 +1047,7 @@ $alert = getAlert();
                 <h3 class="text-lg font-semibold text-gray-900">Edit Produk</h3>
             </div>
             <form method="POST" action="" class="p-6">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="produk_id" id="edit_produk_id">
                 <div class="space-y-4">
@@ -1084,6 +1136,7 @@ $alert = getAlert();
                 <h3 class="text-lg font-semibold text-gray-900">Update Harga Massal</h3>
             </div>
             <form method="POST" action="" class="p-6">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <input type="hidden" name="action" value="mass_update">
                 <div class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
@@ -1169,6 +1222,7 @@ $alert = getAlert();
                 <h3 class="text-lg font-semibold text-gray-900">Hapus Produk</h3>
             </div>
             <form method="POST" action="" class="p-6">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="produk_id" id="delete_produk_id">
                 <div class="space-y-4">
@@ -1198,10 +1252,49 @@ $alert = getAlert();
     </div>
     
     <script>
+        // Smooth Sidebar Toggle with localStorage
         function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('closed');
-            document.getElementById('overlay').classList.toggle('hidden');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            const isHidden = sidebar.classList.contains('hidden');
+            
+            if (isHidden) {
+                sidebar.classList.remove('hidden');
+                overlay.classList.remove('hidden');
+                localStorage.setItem('sidebar_visible', 'true');
+            } else {
+                sidebar.classList.add('hidden');
+                overlay.classList.add('hidden');
+                localStorage.setItem('sidebar_visible', 'false');
+            }
         }
+        
+        // Initialize sidebar state
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            const savedState = localStorage.getItem('sidebar_visible');
+            const isMobile = window.innerWidth < 768;
+            
+            if (savedState === 'false' || (isMobile && savedState !== 'true')) {
+                sidebar.classList.add('hidden');
+                overlay.classList.add('hidden');
+            } else {
+                sidebar.classList.remove('hidden');
+                overlay.classList.remove('hidden');
+            }
+        });
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            
+            if (window.innerWidth >= 768) {
+                sidebar.classList.remove('hidden');
+                overlay.classList.add('hidden');
+            }
+        });
         
         // Modal Functions
         function openModal(modalId) {

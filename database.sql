@@ -121,11 +121,13 @@ CREATE TABLE pengaturan (
 -- INSERT DATA DEFAULT
 -- =============================================
 
--- Insert Admin Default (password: admin123)
-INSERT INTO users (username, password, nama_lengkap, email, no_hp, saldo, role) VALUES
-('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Administrator', 'admin@ppob.com', '081234567890', 10000000, 'admin'),
-('member1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Budi Santoso', 'budi@email.com', '081234567891', 500000, 'member'),
-('member2', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Siti Rahayu', 'siti@email.com', '081234567892', 750000, 'member');
+-- RUN setup.php TO CREATE ADMIN ACCOUNT
+-- DO NOT insert default users with weak passwords!
+
+-- Insert sample users (replace with secure setup)
+-- Uncomment and run only after securing with strong passwords
+-- INSERT INTO users (username, password, nama_lengkap, email, no_hp, saldo, role) VALUES
+-- ('admin', 'HASH_HERE', 'Administrator', 'admin@ppob.com', '081234567890', 0, 'admin');
 
 -- Insert Kategori Produk
 INSERT INTO kategori_produk (nama_kategori, icon, warna) VALUES

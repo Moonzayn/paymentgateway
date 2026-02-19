@@ -1,0 +1,51 @@
+# PPOB Express Security & Environment Files
+
+# Environment files (contains sensitive data)
+.env
+.env.local
+.env.production
+
+# Setup marker
+.setup_complete
+
+# Logs
+logs/
+*.log
+
+# Backups
+backups/
+*.sql
+*.sql.zip
+
+# Session files
+sessions/
+
+# Uploads (keep structure, ignore files)
+uploads/*
+!uploads/.gitkeep
+!uploads/bukti_transfer/.gitkeep
+
+# Security
+security.log
+admin_activity.log
+transactions.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+vendor/
+node_modules/
+
+# Temporary
+tmp/
+temp/
+cache/

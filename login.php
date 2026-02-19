@@ -12,37 +12,63 @@ if (isset($_SESSION['user_id'])) {
 $error = '';
 // Proses Login
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $username = $_POST['username'] ?? '';
-    $password = $_POST['password'] ?? '';
-   
-    if (empty($username) || empty($password)) {
-        $error = 'Username dan password harus diisi!';
+    // Validate CSRF token
+    $csrf_token = $_POST['csrf_token'] ?? '';
+    if (!validateCSRFToken($csrf_token)) {
+        $error = 'Sesi tidak valid. Silakan refresh halaman.';
     } else {
-        $conn = koneksi();
-        $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? AND status = 'active'");
-        $stmt->bind_param("s", $username);
-        $stmt->execute();
-        $result = $stmt->get_result();
-         
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
         
-        if ($user = $result->fetch_assoc()) {
-            // Password default: password (untuk demo, gunakan password_verify untuk production)
-            if (password_verify($password, $user['password']) || $password == 'password') {
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['nama_lengkap'] = $user['nama_lengkap'];
-                $_SESSION['role'] = $user['role'];
-                $_SESSION['saldo'] = $user['saldo'];
-                
-                header("Location: index.php");
-                exit;
-            } else {
-                $error = 'Password salah!';
-            }
+        // Rate limiting check
+        $identifier = $username . '_' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        if (!checkLoginAttempts($identifier)) {
+            $error = 'Terlalu banyak percobaan login. Silakan coba lagi dalam 15 menit.';
+        } elseif (empty($username) || empty($password)) {
+            $error = 'Username dan password harus diisi!';
+        } elseif (strlen($username) > 50 || strlen($password) > 100) {
+            $error = 'Input terlalu panjang!';
         } else {
-            $error = 'Username tidak ditemukan!';
+            $conn = koneksi();
+            $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? AND status = 'active'");
+            $stmt->bind_param("s", $username);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            if ($user = $result->fetch_assoc()) {
+                // Verifikasi password yang benar
+                if (password_verify($password, $user['password'])) {
+                    // Clear login attempts on success
+                    clearLoginAttempts($identifier);
+                    
+                    // Regenerate session ID for security
+                    session_regenerate_id(true);
+                    
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['username'] = $user['username'];
+                    $_SESSION['nama_lengkap'] = $user['nama_lengkap'];
+                    $_SESSION['role'] = $user['role'];
+                    $_SESSION['saldo'] = $user['saldo'];
+                    $_SESSION['created'] = time();
+                    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                    
+                    // Log successful login
+                    error_log("[" . date('Y-m-d H:i:s') . "] LOGIN SUCCESS: User {$username} from IP " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+                    
+                    header("Location: index.php");
+                    exit;
+                } else {
+                    recordLoginAttempt($identifier);
+                    $error = 'Password salah!';
+                    error_log("[" . date('Y-m-d H:i:s') . "] LOGIN FAILED: Wrong password for {$username} from IP " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+                }
+            } else {
+                recordLoginAttempt($identifier);
+                $error = 'Username tidak ditemukan!';
+                error_log("[" . date('Y-m-d H:i:s') . "] LOGIN FAILED: User {$username} not found from IP " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+            }
+            $conn->close();
         }
-        $conn->close();
     }
 }
 
@@ -196,6 +222,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <?php endif; ?>
                 
                 <form method="POST" action="" class="space-y-5">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">
                             <i class="fas fa-user mr-2 text-gray-400"></i>
@@ -206,6 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                class="input-field w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none"
                                placeholder="Masukkan username"
                                required
+                               maxlength="50"
                                autofocus>
                     </div>
                     
@@ -220,7 +249,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                    id="password"
                                    class="input-field w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none pr-12"
                                    placeholder="Masukkan password"
-                                   required>
+                                   required
+                                   maxlength="100"
+                                   autocomplete="current-password">
                             <button type="button" 
                                     onclick="togglePassword()" 
                                     class="password-toggle absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
