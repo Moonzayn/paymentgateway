@@ -1,202 +1,181 @@
 -- =============================================
--- DATABASE PPOB (Payment Point Online Bank)
+-- DATABASE UPDATE PPOB EXPRESS (Safe Version)
+-- Run this file to update your database
+-- Won't error if columns/tables already exist
 -- =============================================
 
-CREATE DATABASE IF NOT EXISTS db_ppob;
 USE db_ppob;
 
 -- =============================================
--- TABEL USERS (Admin & Member)
+-- 1. KATEGORI PRODUK - Add Game category
 -- =============================================
-CREATE TABLE users (
+INSERT IGNORE INTO kategori_produk (id, nama_kategori, icon, warna, status) 
+VALUES (4, 'Game', 'fa-gamepad', '#8b5cf6', 'active');
+
+-- =============================================
+-- 2. TRANSAKSI - Add new columns (Safe - won't error)
+-- =============================================
+-- Add ref_id column
+-- Check if column exists first
+SET @dbname = DATABASE();
+SET @tablename = 'transaksi';
+SET @columnname = 'ref_id';
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
+    'SELECT ''Column ref_id already exists'' as msg',
+    'ALTER TABLE transaksi ADD COLUMN ref_id VARCHAR(100) NULL AFTER produk_id'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add server_id column
+SET @columnname = 'server_id';
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
+    'SELECT ''Column server_id already exists'' as msg',
+    'ALTER TABLE transaksi ADD COLUMN server_id VARCHAR(50) NULL AFTER no_tujuan'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add customer_id column
+SET @columnname = 'customer_id';
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
+    'SELECT ''Column customer_id already exists'' as msg',
+    'ALTER TABLE transaksi ADD COLUMN customer_id VARCHAR(50) NULL AFTER server_id'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add api_response column
+SET @columnname = 'api_response';
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
+    'SELECT ''Column api_response already exists'' as msg',
+    'ALTER TABLE transaksi ADD COLUMN api_response TEXT NULL AFTER keterangan'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- =============================================
+-- 3. TRANSAKSI - Update enum for game support
+-- =============================================
+-- This might error if 'game' already in enum, wrap in ignore
+-- ALTER TABLE transaksi MODIFY COLUMN jenis_transaksi ENUM('pulsa', 'kuota', 'listrik', 'transfer', 'game', 'deposit', 'admin') NOT NULL;
+
+-- =============================================
+-- 4. RATE LIMITS TABLE - For rate limiting security
+-- =============================================
+CREATE TABLE IF NOT EXISTS rate_limits (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    nama_lengkap VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL,
-    no_hp VARCHAR(15) NOT NULL,
-    saldo DECIMAL(15,2) DEFAULT 0,
-    role ENUM('admin', 'member') DEFAULT 'member',
-    status ENUM('active', 'inactive') DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ip_address VARCHAR(45) NOT NULL,
+    endpoint VARCHAR(100) NOT NULL,
+    requests_count INT DEFAULT 1,
+    window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ip_endpoint (ip_address, endpoint),
+    INDEX idx_window (window_start)
 );
 
 -- =============================================
--- TABEL KATEGORI PRODUK
+-- 5. TRANSACTION LOCKS - Prevent race conditions
 -- =============================================
-CREATE TABLE kategori_produk (
+CREATE TABLE IF NOT EXISTS transaction_locks (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    nama_kategori VARCHAR(50) NOT NULL,
-    icon VARCHAR(50) NOT NULL,
-    warna VARCHAR(20) NOT NULL,
-    status ENUM('active', 'inactive') DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- =============================================
--- TABEL PRODUK (Pulsa, Kuota, Token Listrik)
--- =============================================
-CREATE TABLE produk (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    kategori_id INT NOT NULL,
-    kode_produk VARCHAR(50) NOT NULL UNIQUE,
-    nama_produk VARCHAR(100) NOT NULL,
-    provider VARCHAR(50),
-    nominal DECIMAL(15,2) NOT NULL,
-    harga_jual DECIMAL(15,2) NOT NULL,
-    harga_modal DECIMAL(15,2) NOT NULL,
-    status ENUM('active', 'inactive') DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (kategori_id) REFERENCES kategori_produk(id)
-);
-
--- =============================================
--- TABEL TRANSAKSI
--- =============================================
-CREATE TABLE transaksi (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    lock_key VARCHAR(100) NOT NULL UNIQUE,
     user_id INT NOT NULL,
-    produk_id INT,
-    ref_id VARCHAR(100) NULL, -- ID transaksi dari supplier API
-    no_invoice VARCHAR(50) NOT NULL UNIQUE,
-    jenis_transaksi ENUM('pulsa', 'kuota', 'listrik', 'transfer', 'game') NOT NULL,
-    no_tujuan VARCHAR(50) NOT NULL,
-    server_id VARCHAR(50) NULL, -- Untuk game: server ID (misal: singapore-1)
-    customer_id VARCHAR(50) NULL, -- Untuk game: player ID
-    nominal DECIMAL(15,2) NOT NULL,
-    harga DECIMAL(15,2) NOT NULL,
-    biaya_admin DECIMAL(15,2) DEFAULT 0,
-    total_bayar DECIMAL(15,2) NOT NULL,
-    saldo_sebelum DECIMAL(15,2) NOT NULL,
-    saldo_sesudah DECIMAL(15,2) NOT NULL,
-    status ENUM('pending', 'success', 'failed', 'refund') DEFAULT 'pending',
-    api_response TEXT NULL, -- Response JSON dari API supplier
-    keterangan TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (produk_id) REFERENCES produk(id),
-    INDEX idx_no_tujuan (no_tujuan),
-    INDEX idx_jenis_transaksi (jenis_transaksi),
-    INDEX idx_created_at (created_at),
-    INDEX idx_ref_id (ref_id),
-    INDEX idx_status (status)
+    expires_at TIMESTAMP NULL,
+    INDEX idx_lock_key (lock_key),
+    INDEX idx_expires (expires_at)
 );
 
 -- =============================================
--- TABEL TRANSFER TUNAI
+-- 6. WEBHOOK LOGS - For API callbacks
 -- =============================================
-CREATE TABLE transfer_tunai (
+CREATE TABLE IF NOT EXISTS webhook_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    transaksi_id INT NOT NULL,
-    bank_tujuan VARCHAR(50) NOT NULL,
-    no_rekening VARCHAR(30) NOT NULL,
-    nama_penerima VARCHAR(100) NOT NULL,
+    endpoint VARCHAR(100) NOT NULL,
+    payload TEXT,
+    response TEXT,
+    status_code INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (transaksi_id) REFERENCES transaksi(id)
+    processed_at TIMESTAMP NULL,
+    INDEX idx_endpoint (endpoint),
+    INDEX idx_created (created_at)
 );
 
 -- =============================================
--- TABEL DEPOSIT / TOP UP SALDO
+-- 7. EMAIL QUEUE - For async email sending
 -- =============================================
-CREATE TABLE deposit (
+CREATE TABLE IF NOT EXISTS email_queue (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    no_deposit VARCHAR(50) NOT NULL UNIQUE,
-    nominal DECIMAL(15,2) NOT NULL,
-    metode_bayar VARCHAR(50) NOT NULL,
-    bukti_transfer VARCHAR(255),
-    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-    approved_by INT,
-    approved_at TIMESTAMP NULL,
+    to_email VARCHAR(255) NOT NULL,
+    subject VARCHAR(500),
+    body TEXT,
+    status ENUM('pending', 'sent', 'failed') DEFAULT 'pending',
+    attempts INT DEFAULT 0,
+    max_attempts INT DEFAULT 3,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (approved_by) REFERENCES users(id)
+    sent_at TIMESTAMP NULL,
+    INDEX idx_status (status),
+    INDEX idx_to_email (to_email)
 );
 
 -- =============================================
--- TABEL PENGATURAN
+-- 8. SECURITY LOGS - Audit trail
 -- =============================================
-CREATE TABLE pengaturan (
+CREATE TABLE IF NOT EXISTS security_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    nama_key VARCHAR(50) NOT NULL UNIQUE,
-    nilai TEXT NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    user_id INT,
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(500),
+    details TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    INDEX idx_user_id (user_id),
+    INDEX idx_event_type (event_type),
+    INDEX idx_created_at (created_at)
 );
 
 -- =============================================
--- INSERT DATA DEFAULT
+-- 9. SAMPLE GAME PRODUCTS (Optional - for testing)
 -- =============================================
+INSERT IGNORE INTO produk (kategori_id, kode_produk, nama_produk, provider, nominal, harga_jual, harga_modal) VALUES
+(4, 'ML_DIAMOND_70', 'Mobile Legends 70 Diamonds', 'Moonton', 70000, 15000, 12000),
+(4, 'ML_DIAMOND_140', 'Mobile Legends 140 Diamonds', 'Moonton', 140000, 28000, 24000),
+(4, 'ML_DIAMOND_280', 'Mobile Legends 280 Diamonds', 'Moonton', 280000, 55000, 48000),
+(4, 'ML_DIAMOND_500', 'Mobile Legends 500 Diamonds', 'Moonton', 500000, 95000, 85000),
+(4, 'FF_DIAMOND_70', 'Free Fire 70 Diamonds', 'Garena', 70000, 14000, 11000),
+(4, 'FF_DIAMOND_140', 'Free Fire 140 Diamonds', 'Garena', 140000, 27000, 22000),
+(4, 'FF_DIAMOND_280', 'Free Fire 280 Diamonds', 'Garena', 280000, 53000, 45000),
+(4, 'FF_DIAMOND_500', 'Free Fire 500 Diamonds', 'Garena', 500000, 93000, 80000),
+(4, 'PUBGM_60', 'PUBG Mobile 60 UC', 'Tencent', 60000, 18000, 15000),
+(4, 'PUBGM_120', 'PUBG Mobile 120 UC', 'Tencent', 120000, 35000, 30000),
+(4, 'PUBGM_300', 'PUBG Mobile 300 UC', 'Tencent', 300000, 85000, 75000);
 
--- RUN setup.php TO CREATE ADMIN ACCOUNT
--- DO NOT insert default users with weak passwords!
-
--- Insert sample users (replace with secure setup)
--- Uncomment and run only after securing with strong passwords
--- INSERT INTO users (username, password, nama_lengkap, email, no_hp, saldo, role) VALUES
--- ('admin', 'HASH_HERE', 'Administrator', 'admin@ppob.com', '081234567890', 0, 'admin');
-
--- Insert Kategori Produk
-INSERT INTO kategori_produk (nama_kategori, icon, warna) VALUES
-('Pulsa', 'fa-mobile-alt', 'blue'),
-('Kuota Internet', 'fa-wifi', 'green'),
-('Token Listrik', 'fa-bolt', 'yellow'),
-('Transfer Tunai', 'fa-money-bill-transfer', 'purple');
-
--- Insert Produk Pulsa
-INSERT INTO produk (kategori_id, kode_produk, nama_produk, provider, nominal, harga_jual, harga_modal) VALUES
-(1, 'TSEL5', 'Pulsa Telkomsel 5K', 'Telkomsel', 5000, 6500, 5500),
-(1, 'TSEL10', 'Pulsa Telkomsel 10K', 'Telkomsel', 10000, 11500, 10500),
-(1, 'TSEL25', 'Pulsa Telkomsel 25K', 'Telkomsel', 25000, 26500, 25500),
-(1, 'TSEL50', 'Pulsa Telkomsel 50K', 'Telkomsel', 50000, 51500, 50500),
-(1, 'TSEL100', 'Pulsa Telkomsel 100K', 'Telkomsel', 100000, 101500, 100500),
-(1, 'XL5', 'Pulsa XL 5K', 'XL', 5000, 6000, 5300),
-(1, 'XL10', 'Pulsa XL 10K', 'XL', 10000, 11000, 10300),
-(1, 'XL25', 'Pulsa XL 25K', 'XL', 25000, 26000, 25300),
-(1, 'XL50', 'Pulsa XL 50K', 'XL', 50000, 51000, 50300),
-(1, 'ISAT5', 'Pulsa Indosat 5K', 'Indosat', 5000, 6200, 5400),
-(1, 'ISAT10', 'Pulsa Indosat 10K', 'Indosat', 10000, 11200, 10400),
-(1, 'ISAT25', 'Pulsa Indosat 25K', 'Indosat', 25000, 26200, 25400),
-(1, 'TRI5', 'Pulsa Tri 5K', 'Tri', 5000, 5800, 5200),
-(1, 'TRI10', 'Pulsa Tri 10K', 'Tri', 10000, 10800, 10200);
-
--- Insert Produk Kuota
-INSERT INTO produk (kategori_id, kode_produk, nama_produk, provider, nominal, harga_jual, harga_modal) VALUES
-(2, 'TSELDATA1', 'Kuota Telkomsel 1GB', 'Telkomsel', 1000, 15000, 13000),
-(2, 'TSELDATA2', 'Kuota Telkomsel 2GB', 'Telkomsel', 2000, 25000, 22000),
-(2, 'TSELDATA5', 'Kuota Telkomsel 5GB', 'Telkomsel', 5000, 50000, 45000),
-(2, 'TSELDATA10', 'Kuota Telkomsel 10GB', 'Telkomsel', 10000, 85000, 78000),
-(2, 'XLDATA1', 'Kuota XL 1GB', 'XL', 1000, 12000, 10000),
-(2, 'XLDATA3', 'Kuota XL 3GB', 'XL', 3000, 30000, 26000),
-(2, 'XLDATA5', 'Kuota XL 5GB', 'XL', 5000, 45000, 40000),
-(2, 'ISATDATA1', 'Kuota Indosat 1GB', 'Indosat', 1000, 13000, 11000),
-(2, 'ISATDATA3', 'Kuota Indosat 3GB', 'Indosat', 3000, 32000, 28000);
-
--- Insert Produk Token Listrik
-INSERT INTO produk (kategori_id, kode_produk, nama_produk, provider, nominal, harga_jual, harga_modal) VALUES
-(3, 'PLN20', 'Token Listrik 20K', 'PLN', 20000, 22500, 20500),
-(3, 'PLN50', 'Token Listrik 50K', 'PLN', 50000, 52500, 50500),
-(3, 'PLN100', 'Token Listrik 100K', 'PLN', 100000, 102500, 100500),
-(3, 'PLN200', 'Token Listrik 200K', 'PLN', 200000, 202500, 200500),
-(3, 'PLN500', 'Token Listrik 500K', 'PLN', 500000, 502500, 500500),
-(3, 'PLN1000', 'Token Listrik 1JT', 'PLN', 1000000, 1002500, 1000500);
-
--- Insert Pengaturan
-INSERT INTO pengaturan (nama_key, nilai) VALUES
-('nama_aplikasi', 'PPOB Express'),
+-- =============================================
+-- 10. DEFAULT SETTINGS (if not exists)
+-- =============================================
+INSERT IGNORE INTO pengaturan (nama_key, nilai) VALUES
+('minimal_deposit', '10000'),
 ('biaya_admin_transfer', '2500'),
 ('minimal_transfer', '10000'),
 ('maksimal_transfer', '50000000'),
-('nomor_whatsapp', '081234567890');
+('biaya_admin_listrik', '2500');
 
 -- =============================================
--- INSERT SAMPLE TRANSAKSI
+-- DONE!
 -- =============================================
-INSERT INTO transaksi (user_id, produk_id, no_invoice, jenis_transaksi, no_tujuan, nominal, harga, biaya_admin, total_bayar, saldo_sebelum, saldo_sesudah, status, keterangan, created_at) VALUES
-(2, 1, 'INV20240101001', 'pulsa', '081234567890', 5000, 6500, 0, 6500, 506500, 500000, 'success', 'Pembelian pulsa berhasil', '2024-01-15 08:30:00'),
-(2, 15, 'INV20240101002', 'kuota', '081234567890', 1000, 15000, 0, 15000, 515000, 500000, 'success', 'Pembelian kuota berhasil', '2024-01-16 10:15:00'),
-(3, 24, 'INV20240101003', 'listrik', '12345678901', 50000, 52500, 0, 52500, 802500, 750000, 'success', 'Token: 1234-5678-9012-3456', '2024-01-17 14:20:00'),
-(2, NULL, 'INV20240101004', 'transfer', '1234567890', 100000, 100000, 2500, 102500, 602500, 500000, 'success', 'Transfer ke BCA berhasil', '2024-01-18 09:45:00'),
-(3, 5, 'INV20240101005', 'pulsa', '085678901234', 100000, 101500, 0, 101500, 851500, 750000, 'success', 'Pembelian pulsa berhasil', '2024-01-19 16:30:00');
+SELECT '✅ Database update completed successfully!' as message;
+
+-- Show all tables
+SHOW TABLES;
