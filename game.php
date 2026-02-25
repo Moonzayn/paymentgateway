@@ -107,6 +107,12 @@ $popularGames = ['ml', 'pubgm', 'ff', 'genshin'];
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Rate limiting: max 10 purchases per minute
+    if (!checkRateLimit('purchase_game', 10, 60)) {
+        setAlert('error', 'Terlalu banyak permintaan. Silakan tunggu sebentar.');
+        header("Location: game.php"); exit;
+    }
+    
     $csrf_token = $_POST['csrf_token'] ?? '';
     if (!validateCSRFToken($csrf_token)) {
         setAlert('error', 'Sesi tidak valid. Silakan refresh halaman.');

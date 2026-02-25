@@ -30,6 +30,10 @@ if (session_status() === PHP_SESSION_NONE) {
     }
 }
 
+// Include security functions
+require_once __DIR__ . '/security.php';
+applySecurityHeaders();
+
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '');

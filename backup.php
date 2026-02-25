@@ -2,9 +2,39 @@
 /**
  * Database Backup Utility untuk PPOB
  * Run this script manually or via cron job
+ * 
+ * ⚠️ SECURITY: This file requires Strong Authentication
  */
 
 require_once 'config.php';
+cekLogin(); // Require login
+
+// Only admin can access
+if (!isset($_SESSION['role']) || $_SESSION['role'] != 'admin') {
+    http_response_code(403);
+    die('Access denied. Admin only.');
+}
+
+// Generate strong random token for cron
+$cron_token = $_GET['cron_token'] ?? '';
+
+// Simple token verification for cron - use a strong random string
+// Set this in your cron job: backup.php?cron_token=YOUR_STRONG_RANDOM_TOKEN
+$expected_cron_token = 'YOUR_STRONG_RANDOM_TOKEN_CHANGE_ME';
+
+// Verify cron token if provided (for automated backups)
+if (!empty($cron_token) && $cron_token !== $expected_cron_token) {
+    http_response_code(403);
+    die('Invalid token');
+}
+
+// Also verify session for web access
+if (php_sapi_name() !== 'cli' && empty($cron_token)) {
+    if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
+        http_response_code(403);
+        die('Access denied');
+    }
+}
 
 /**
  * Backup database ke file SQL

@@ -32,6 +32,12 @@ $daftarBank = [
 
 // Proses transfer
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Rate limiting: max 5 transfers per minute
+    if (!checkRateLimit('transfer', 5, 60)) {
+        setAlert('error', 'Terlalu banyak permintaan. Silakan tunggu sebentar.');
+        header("Location: transfer.php"); exit;
+    }
+    
     // Validasi CSRF token
     $csrf_token = $_POST['csrf_token'] ?? '';
     if (!validateCSRFToken($csrf_token)) {

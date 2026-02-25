@@ -47,6 +47,12 @@ while ($row = $produkKuota->fetch_assoc()) {
 
 // ═══ Proses Pembelian ═══
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Rate limiting: max 10 purchases per minute
+    if (!checkRateLimit('purchase_kuota', 10, 60)) {
+        setAlert('error', 'Terlalu banyak permintaan. Silakan tunggu sebentar.');
+        header("Location: kuota.php"); exit;
+    }
+    
     $csrf_token = $_POST['csrf_token'] ?? '';
     if (!validateCSRFToken($csrf_token)) {
         setAlert('error', 'Sesi tidak valid. Silakan refresh halaman.');

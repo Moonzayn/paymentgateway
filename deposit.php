@@ -76,6 +76,12 @@ $minDeposit = floatval(getPengaturan('minimal_deposit') ?? 10000);
 
 // Proses deposit
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Rate limiting: max 5 deposit requests per minute
+    if (!checkRateLimit('deposit', 5, 60)) {
+        setAlert('error', 'Terlalu banyak permintaan. Silakan tunggu sebentar.');
+        header("Location: deposit.php"); exit;
+    }
+    
     // Validasi CSRF token
     $csrf_token = $_POST['csrf_token'] ?? '';
     if (!validateCSRFToken($csrf_token)) {

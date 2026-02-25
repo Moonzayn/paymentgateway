@@ -99,6 +99,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             $stmt->bind_param("sssssdss", $username, $hashedPassword, $nama_lengkap, $email, $no_hp, $saldo, $role, $status);
             
             if ($stmt->execute()) {
+                // Audit log
+                logSecurityEvent('USER_CREATED', [
+                    'admin_id' => $_SESSION['user_id'],
+                    'new_username' => $username,
+                    'new_role' => $role,
+                    'initial_saldo' => $saldo
+                ]);
+                
                 setAlert('success', 'User berhasil ditambahkan!');
             } else {
                 setAlert('error', 'Gagal menambahkan user!');
@@ -135,6 +143,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         $stmt->bind_param("sssdssi", $nama_lengkap, $email, $no_hp, $saldo, $role, $status, $user_id);
         
         if ($stmt->execute()) {
+            // Audit log
+            logSecurityEvent('USER_UPDATED', [
+                'admin_id' => $_SESSION['user_id'],
+                'target_user_id' => $user_id,
+                'changes' => [
+                    'nama_lengkap' => $nama_lengkap,
+                    'email' => $email,
+                    'role' => $role,
+                    'status' => $status
+                ]
+            ]);
+            
             setAlert('success', 'User berhasil diperbarui!');
         } else {
             setAlert('error', 'Gagal memperbarui user!');
@@ -196,6 +216,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
                 $transaksiStmt->bind_param("isddddds", $user_id, $invoice, $user['nama_lengkap'], $jumlah, $jumlah, $jumlah, $saldo_sebelum, $saldo_sesudah, $keterangan_transaksi);
                 $transaksiStmt->execute();
                 
+                // Audit log untuk keamanan
+                logSecurityEvent('ADMIN_BALANCE_CHANGE', [
+                    'admin_id' => $_SESSION['user_id'],
+                    'target_user_id' => $user_id,
+                    'target_username' => $user['nama_lengkap'],
+                    'type' => $saldo_tipe,
+                    'amount' => $jumlah,
+                    'balance_before' => $saldo_sebelum,
+                    'balance_after' => $saldo_sesudah,
+                    'note' => $keterangan
+                ]);
+                
                 setAlert('success', 'Saldo berhasil diperbarui!');
             } else {
                 setAlert('error', 'Gagal memperbarui saldo!');
@@ -243,6 +275,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
                 $stmt->bind_param("i", $user_id);
                 
                 if ($stmt->execute()) {
+                    // Audit log
+                    logSecurityEvent('USER_DELETED', [
+                        'admin_id' => $_SESSION['user_id'],
+                        'deleted_user_id' => $user_id
+                    ]);
+                    
                     setAlert('success', 'User berhasil dihapus!');
                 } else {
                     setAlert('error', 'Gagal menghapus user!');
