@@ -58,9 +58,12 @@ CREATE TABLE transaksi (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     produk_id INT,
+    ref_id VARCHAR(100) NULL, -- ID transaksi dari supplier API
     no_invoice VARCHAR(50) NOT NULL UNIQUE,
-    jenis_transaksi ENUM('pulsa', 'kuota', 'listrik', 'transfer') NOT NULL,
+    jenis_transaksi ENUM('pulsa', 'kuota', 'listrik', 'transfer', 'game') NOT NULL,
     no_tujuan VARCHAR(50) NOT NULL,
+    server_id VARCHAR(50) NULL, -- Untuk game: server ID (misal: singapore-1)
+    customer_id VARCHAR(50) NULL, -- Untuk game: player ID
     nominal DECIMAL(15,2) NOT NULL,
     harga DECIMAL(15,2) NOT NULL,
     biaya_admin DECIMAL(15,2) DEFAULT 0,
@@ -68,11 +71,17 @@ CREATE TABLE transaksi (
     saldo_sebelum DECIMAL(15,2) NOT NULL,
     saldo_sesudah DECIMAL(15,2) NOT NULL,
     status ENUM('pending', 'success', 'failed', 'refund') DEFAULT 'pending',
+    api_response TEXT NULL, -- Response JSON dari API supplier
     keterangan TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (produk_id) REFERENCES produk(id)
+    FOREIGN KEY (produk_id) REFERENCES produk(id),
+    INDEX idx_no_tujuan (no_tujuan),
+    INDEX idx_jenis_transaksi (jenis_transaksi),
+    INDEX idx_created_at (created_at),
+    INDEX idx_ref_id (ref_id),
+    INDEX idx_status (status)
 );
 
 -- =============================================

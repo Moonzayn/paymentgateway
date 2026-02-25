@@ -1,30 +1,36 @@
 <?php
+$pageTitle = 'Token Listrik';
+$pageIcon  = 'fas fa-bolt';
+$pageDesc  = 'Token listrik PLN prabayar dengan harga terbaik';
+
 require_once 'config.php';
 cekLogin();
-
 $conn = koneksi();
 $user_id = $_SESSION['user_id'];
 $_SESSION['saldo'] = getSaldo($user_id);
 
+$alert = getAlert();
+
 // Ambil produk token listrik
 $produkListrik = $conn->query("SELECT * FROM produk WHERE kategori_id = 3 AND status = 'active' ORDER BY nominal");
 
+// Ambil hasil token dari session (jika ada)
+$tokenResult = isset($_SESSION['token_result']) ? $_SESSION['token_result'] : null;
+unset($_SESSION['token_result']);
+
 // Proses pembelian
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Validasi CSRF token
     $csrf_token = $_POST['csrf_token'] ?? '';
     if (!validateCSRFToken($csrf_token)) {
         setAlert('error', 'Sesi tidak valid. Silakan refresh halaman.');
-        header("Location: listrik.php");
-        exit;
+        header("Location: listrik.php"); exit;
     }
-    
+
     $no_meter = preg_replace('/[^0-9]/', '', $_POST['no_meter'] ?? '');
     $produk_id = intval($_POST['produk_id'] ?? 0);
-    
-    // Validasi input yang lebih ketat
-    if (empty($no_meter) || strlen($no_meter) < 11 || strlen($no_meter) > 12) {
-        setAlert('error', 'Nomor meter tidak valid! (11-12 digit)');
+
+    if (empty($no_meter) || strlen($no_meter) < 11 || strlen($no_meter) > 13) {
+        setAlert('error', 'Nomor meter tidak valid! (11-13 digit)');
     } elseif ($produk_id == 0 || $produk_id > 100000) {
         setAlert('error', 'Pilih nominal token yang valid!');
     } else {
@@ -32,31 +38,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt->bind_param("i", $produk_id);
         $stmt->execute();
         $produk = $stmt->get_result()->fetch_assoc();
-        
+
         if (!$produk) {
             setAlert('error', 'Produk tidak ditemukan!');
         } else {
-            $saldo = getSaldo($user_id);
             $harga = $produk['harga_jual'];
-            
+            $saldo = getSaldo($user_id);
             if ($saldo < $harga) {
                 setAlert('error', 'Saldo tidak mencukupi! Silakan deposit terlebih dahulu.');
             } else {
                 $invoice = generateInvoice();
                 $saldo_sebelum = $saldo;
                 $saldo_sesudah = $saldo - $harga;
-                
-                // Generate token dummy
+
+                // Generate token (simulasi)
                 $token = rand(1000,9999).'-'.rand(1000,9999).'-'.rand(1000,9999).'-'.rand(1000,9999).'-'.rand(1000,9999);
                 $keterangan = "Token: " . $token;
-                
-                $stmt = $conn->prepare("INSERT INTO transaksi (user_id, produk_id, no_invoice, jenis_transaksi, no_tujuan, nominal, harga, biaya_admin, total_bayar, saldo_sebelum, saldo_sesudah, status, keterangan) VALUES (?, ?, ?, 'listrik', ?, ?, ?, 0, ?, ?, ?, 'success', ?)");
-                $stmt->bind_param("iissddddds", $user_id, $produk_id, $invoice, $no_meter, $produk['nominal'], $harga, $harga, $saldo_sebelum, $saldo_sesudah, $keterangan);
-                
+
+                $stmt = $conn->prepare("INSERT INTO transaksi (user_id, produk_id, invoice_no, jenis_transaksi, no_tujuan, nominal, harga, biaya_admin, total_bayar, saldo_sebelum, saldo_sesudah, status, keterangan) VALUES (?, ?, ?, 'listrik', ?, ?, ?, 0, ?, ?, ?, 'success', ?)");
+                $stmt->bind_param("iissdddds", $user_id, $produk_id, $invoice, $no_meter, $produk['nominal'], $harga, $harga, $saldo_sebelum, $saldo_sesudah, $keterangan);
+
                 if ($stmt->execute()) {
                     updateSaldo($user_id, $harga, 'kurang');
                     $_SESSION['saldo'] = getSaldo($user_id);
-                    $_SESSION['token_result'] = ['invoice' => $invoice, 'token' => $token, 'nominal' => $produk['nominal'], 'harga' => $harga];
+                    $_SESSION['token_result'] = [
+                        'invoice' => $invoice,
+                        'token' => $token,
+                        'nominal' => $produk['nominal'],
+                        'harga' => $harga
+                    ];
                     setAlert('success', 'Pembelian token listrik berhasil!');
                 } else {
                     setAlert('error', 'Terjadi kesalahan. Silakan coba lagi.');
@@ -64,724 +74,609 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
     }
-    header("Location: listrik.php");
-    exit;
+    header("Location: listrik.php"); exit;
 }
 
-$alert = getAlert();
-$tokenResult = isset($_SESSION['token_result']) ? $_SESSION['token_result'] : null;
-unset($_SESSION['token_result']);
+$currentPage = 'listrik';
+require_once 'layout.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Token Listrik - PPOB Express</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* ── Layout ── */
-        body {
-            display: flex;
-            min-height: 100vh;
-            background: #f8fafc;
-        }
-
-        /* ── Sidebar ── */
-        #sidebar {
-            position: fixed;
-            top: 0; left: 0;
-            width: 256px;
-            height: 100vh;
-            background: white;
-            border-right: 1px solid #e5e7eb;
-            z-index: 40;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                        width   0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            transform: translateX(0);
-        }
-
-        #sidebar.sidebar-hidden {
-            transform: translateX(-100%);
-        }
-
-        /* ── Main Content ── */
-        #main-content {
-            flex: 1;
-            min-width: 0;
-            margin-left: 256px;
-            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        #main-content.sidebar-hidden {
-            margin-left: 0;
-        }
-
-        /* ── Mobile: sidebar default hidden ── */
-        @media (max-width: 767px) {
-            #sidebar {
-                transform: translateX(-100%);
-            }
-            #sidebar.sidebar-open {
-                transform: translateX(0);
-            }
-            #main-content {
-                margin-left: 0 !important;
-            }
-        }
-
-        /* ── Overlay (mobile only) ── */
-        #overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.35);
-            z-index: 30;
-            backdrop-filter: blur(2px);
-        }
-        #overlay.show {
-            display: block;
-        }
-
-        /* ── Sticky Header ── */
-        .sticky-header {
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            background: white;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-        }
-
-        /* ── Menu Items ── */
-        .menu-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.625rem 1rem;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
-            color: #4b5563;
-            text-decoration: none;
-            transition: all 0.18s ease;
-            white-space: nowrap;
-            overflow: hidden;
-        }
-        .menu-item:hover {
-            background: #f0f4ff;
-            color: #2563be;
-        }
-        .menu-item.active {
-            background: #eff6ff;
-            color: #2563be;
-            border-left: 3px solid #2563be;
-            font-weight: 600;
-        }
-        .menu-item i {
-            width: 1.25rem;
-            text-align: center;
-            flex-shrink: 0;
-        }
-
-        /* ── Card ── */
-        .card {
-            background: white;
-            border-radius: 0.75rem;
-            border: 1px solid #e8ecf0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-        }
-
-        /* ── Toggle Button ── */
-        #toggleBtn {
-            transition: background 0.2s ease, transform 0.15s ease;
-        }
-        #toggleBtn:active { transform: scale(0.92); }
-
-        /* Product Card Styles */
-        .product-card {
-            transition: all 0.2s ease;
-            cursor: pointer;
-        }
-        
-        .product-card:hover {
-            border-color: #f59e0b;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);
-        }
-        
-        .product-card.selected {
-            border-color: #f59e0b;
-            background-color: #fffbeb;
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
-        }
-
-        .input-field {
-            transition: all 0.2s ease;
-        }
-        
-        .input-field:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        .sticky-summary {
-            position: sticky;
-            bottom: 20px;
-            background: white;
-            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
-            border-radius: 12px;
-            z-index: 10;
-        }
-
-        .btn-primary {
-            background-color: #f59e0b;
-            color: white;
-            transition: all 0.2s ease;
-        }
-        
-        .btn-primary:hover {
-            background-color: #d97706;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-        }
-
-        .token-display {
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
-            letter-spacing: 0.1em;
-        }
-
-        .alert {
-            animation: slideIn 0.3s ease;
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .pln-badge {
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            color: white;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 0.2rem 0.55rem;
-            border-radius: 999px;
-            font-size: 0.68rem;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-        .badge-blue   { background:#dbeafe; color:#1d4ed8; }
-        .badge-green  { background:#dcfce7; color:#15803d; }
-        .badge-yellow { background:#fef9c3; color:#a16207; }
-        .badge-purple { background:#f3e8ff; color:#7e22ce; }
-        .badge-indigo { background:#e0e7ff; color:#4338ca; }
-
-        /* Smooth Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-
-        /* Animation */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        .animate-fade-in-up {
-            animation: fadeInUp 0.5s ease-out forwards;
-        }
-        .delay-100 { animation-delay: 0.1s; }
-        .delay-200 { animation-delay: 0.2s; }
-        .delay-300 { animation-delay: 0.3s; }
-
-        /* Gradient Background */
-        .bg-gradient-custom {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-    </style>
-</head>
-
-<body>
 
 <!-- ═══════════════════════════════════════════
-     SIDEBAR
-════════════════════════════════════════════ -->
-<aside id="sidebar">
-    <!-- Logo -->
-    <div class="p-5 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
-        <div class="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-            <i class="fas fa-wallet text-white"></i>
-        </div>
-        <span class="text-lg font-bold leading-tight">
-            <span class="text-blue-600">PPOB</span> Express
-        </span>
-    </div>
+     LISTRIK PAGE - Custom Styles
+     ═══════════════════════════════════════════ -->
+<style>
+/* ── Token Result Card ── */
+.token-result-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    animation: fadeUp 0.5s ease;
+}
+.token-result-header {
+    text-align: center;
+    padding: 24px 20px 16px;
+}
+.token-result-icon {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, #5fe9b0, #9d7706);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 16px;
+    color: white; font-size: 24px;
+    box-shadow: 0 4px 16px rgba(95,233,176,0.3);
+}
+.token-result-title {
+    font-size: 18px; font-weight: 700; margin-bottom: 4px; color: var(--text);
+}
+.token-result-invoice {
+    font-size: 13px; color: var(--text-secondary);
+}
 
-    <!-- Nav -->
-    <nav class="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        <a href="index.php"    class="menu-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
-        <a href="pulsa.php"    class="menu-item"><i class="fas fa-mobile-alt"></i><span>Isi Pulsa</span></a>
-        <a href="kuota.php"    class="menu-item"><i class="fas fa-wifi"></i><span>Paket Data</span></a>
-        <a href="listrik.php"  class="menu-item active"><i class="fas fa-bolt"></i><span>Token Listrik</span></a>
-        <a href="transfer.php" class="menu-item"><i class="fas fa-money-bill-transfer"></i><span>Transfer Tunai</span></a>
-        <a href="deposit.php"  class="menu-item"><i class="fas fa-plus-circle"></i><span>Deposit Saldo</span></a>
-        <a href="riwayat.php"  class="menu-item"><i class="fas fa-history"></i><span>Riwayat Transaksi</span></a>
+/* Token Display */
+.token-display-wrapper {
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    border-radius: 12px;
+    text-align: center;
+    padding: 20px;
+    margin: 0 20px 16px;
+}
+.token-display-label {
+    font-size: 11px; font-weight: 600; color: #15803d;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+.token-display-value {
+    font-family: 'SF Mono', monospace;
+    font-size: 22px; font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--text);
+    word-break: break-all;
+}
+.token-note {
+    font-size: 12px; color: var(--text-secondary);
+    margin-top: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+}
 
-        <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
-        <div class="pt-4 mt-2 border-t border-gray-100">
-            <p class="px-4 text-xs text-gray-400 uppercase tracking-wider mb-2 font-semibold">Admin Menu</p>
-            <a href="kelola_user.php"    class="menu-item"><i class="fas fa-users"></i><span>Kelola User</span></a>
-            <a href="kelola_produk.php" class="menu-item"><i class="fas fa-box"></i><span>Kelola Produk</span></a>
-            <a href="laporan.php"       class="menu-item"><i class="fas fa-chart-bar"></i><span>Laporan</span></a>
-        </div>
-        <?php endif; ?>
-    </nav>
+/* Token Info Grid */
+.token-info-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 12px; padding: 0 20px 20px;
+}
+.token-info-item {
+    background: var(--bg); border-radius: 10px; padding: 12px;
+}
+.token-info-label {
+    font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;
+}
+.token-info-value {
+    font-size: 15px; font-weight: 600; color: var(--text);
+}
 
-    <!-- Footer -->
-    <div class="p-3 border-t border-gray-100 flex-shrink-0">
-        <a href="logout.php" class="menu-item text-red-400 hover:text-red-600 hover:bg-red-50">
-            <i class="fas fa-sign-out-alt"></i><span>Logout</span>
-        </a>
-    </div>
-</aside>
+/* Token Actions */
+.token-actions {
+    display: flex; gap: 12px;
+    padding: 16px 20px; border-top: 1px solid var(--border);
+}
+.btn-copy, .btn-print-token {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 12px;
+    border-radius: 10px; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s ease; border: none;
+}
+.btn-copy {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    box-shadow: 0 2px 8px rgba(99,83,216,0.25);
+}
+.btn-copy:hover { box-shadow: 0 4px 16px rgba(99,83,216,0.35); transform: translateY(-1px); }
+.btn-print-token {
+    background: white; color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+.btn-print-token:hover { background: var(--bg); color: var(--text); }
 
-<!-- Overlay (mobile) -->
-<div id="overlay" onclick="closeSidebar()"></div>
+/* ── Meter Input Card ── */
+.meter-card {
+    background: white; border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+    margin-bottom: 24px;
+}
+.meter-card-header {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 16px;
+}
+.meter-card-icon {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, #fbbf24, #d97706);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 20px; flex-shrink: 0;
+}
+.meter-card-title { font-size: 16px; font-weight: 600; color: var(--text); }
+.meter-card-desc { font-size: 13px; color: var(--text-secondary); }
+
+.meter-input-group { position: relative; margin-bottom: 8px; }
+.meter-input-icon {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); font-size: 16px; pointer-events: none;
+    transition: color 0.2s;
+}
+.meter-input-group:focus-within .meter-input-icon { color: var(--primary); }
+.meter-input {
+    width: 100%; padding: 14px 14px 14px 42px;
+    border: 2px solid var(--border); border-radius: 10px;
+    font-size: 15px; color: var(--text); background: var(--bg);
+    outline: none; transition: all 0.2s ease;
+}
+.meter-input:focus {
+    border-color: var(--primary); background: white;
+    box-shadow: 0 0 0 3px rgba(99,83,216,0.08);
+}
+.meter-input::placeholder { color: var(--text-muted); }
+.meter-hint {
+    font-size: 12px; color: var(--text-muted);
+    display: flex; align-items: center; gap: 4px; margin-top: 6px;
+}
+
+/* ── Token Nominal Card ── */
+.nominal-card {
+    background: white; border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+    margin-bottom: 24px;
+}
+.nominal-card-title {
+    font-size: 16px; font-weight: 600; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px; color: var(--text);
+}
+.nominal-card-title i { color: #d97706; }
+
+.nominal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+/* ── Product Card (Token) ── */
+.token-product-card {
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+.token-product-card:hover {
+    border-color: #d97706;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(217,119,6,0.1);
+}
+.token-product-card.selected {
+    border-color: #d97706;
+    background: #fffbeb;
+    box-shadow: 0 4px 12px rgba(217,119,6,0.15);
+}
+.token-product-card .card-check {
+    position: absolute; top: 8px; right: 8px;
+    width: 20px; height: 20px;
+    background: #d97706; border-radius: 50%;
+    display: none; align-items: center; justify-content: center;
+    color: white; font-size: 10px;
+}
+.token-product-card.selected .card-check { display: flex; }
+
+.token-product-top {
+    display: flex; align-items: flex-start; justify-content: space-between;
+}
+.token-product-nominal {
+    font-size: 16px; font-weight: 700; color: var(--text);
+}
+.token-product-type {
+    font-size: 11px; color: var(--text-secondary); margin-top: 4px;
+    display: flex; align-items: center; gap: 4px;
+}
+.token-product-pricing {
+    border-top: 1px solid var(--border);
+    padding-top: 12px; margin-top: 12px;
+}
+.token-product-price {
+    font-size: 16px; font-weight: 700; color: #d97706;
+}
+.token-product-admin {
+    font-size: 11px; color: var(--text-muted); margin-top: 2px;
+}
+
+/* ── Placeholder ── */
+.listrik-placeholder {
+    background: white; border: 1px solid var(--border);
+    border-radius: 12px; padding: 48px 20px;
+    text-align: center; margin-bottom: 24px;
+}
+.placeholder-icon {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: #fef3c7; color: #d97706;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; margin: 0 auto 16px;
+}
+.placeholder-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.placeholder-text { font-size: 13px; color: var(--text-muted); }
+
+/* ── Sticky Summary ── */
+.listrik-summary {
+    position: fixed; bottom: 20px;
+    left: 50%; transform: translateX(-50%);
+    width: calc(100% - 48px); max-width: 500px;
+    background: white; border-radius: 16px;
+    border: 1px solid var(--border);
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.1);
+    padding: 16px;
+    z-index: 100;
+    display: none;
+    animation: slideUp 0.35s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes slideUp {
+    from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.summary-content {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+}
+.summary-left {}
+.summary-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+.summary-product-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.summary-right { text-align: right; }
+.summary-price-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+.summary-price-value { font-size: 20px; font-weight: 700; color: #d97706; }
+
+.summary-actions {
+    display: flex; gap: 12px;
+}
+.btn-cancel {
+    flex: 1; padding: 10px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: white; color: var(--text-secondary);
+    font-size: 14px; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.btn-cancel:hover { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
+.btn-submit-token {
+    flex: 1; padding: 10px;
+    border: none; border-radius: 10px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    box-shadow: 0 2px 8px rgba(217,119,6,0.3);
+}
+.btn-submit-token:hover {
+    box-shadow: 0 4px 16px rgba(217,119,6,0.4);
+    transform: translateY(-1px);
+}
+
+/* ── Toast ── */
+.toast-msg {
+    position: fixed; top: 80px; right: 20px; z-index: 9999;
+    min-width: 280px; max-width: 400px;
+    padding: 14px 16px; border-radius: 10px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    animation: toastIn 0.4s ease;
+}
+.toast-msg.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+.toast-msg.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+.toast-msg.info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+@keyframes toastIn {
+    from { opacity: 0; transform: translateX(30px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .listrik-summary {
+        bottom: 0; left: 0; right: 0;
+        transform: none; width: 100%;
+        max-width: 100%; border-radius: 16px 16px 0 0;
+    }
+    @keyframes slideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .token-info-grid { grid-template-columns: 1fr; }
+}
+</style>
 
 <!-- ═══════════════════════════════════════════
-     MAIN CONTENT
-════════════════════════════════════════════ -->
-<div id="main-content">
+     LISTRIK PAGE - Content
+     ═══════════════════════════════════════════ -->
 
-    <!-- ── Sticky Header ── -->
-    <header class="sticky-header px-4 py-3 flex items-center justify-between gap-3">
-        <!-- Kiri: Toggle + User Info -->
-        <div class="flex items-center gap-3 min-w-0">
-            <button id="toggleBtn" onclick="toggleSidebar()"
-                class="w-9 h-9 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-blue-600 flex-shrink-0"
-                title="Toggle Sidebar">
-                <i class="fas fa-bars"></i>
-            </button>
+<!-- Token Result (if purchase successful) -->
+<?php if ($tokenResult): ?>
+<div class="token-result-card">
+    <div class="token-result-header">
+        <div class="token-result-icon">
+            <i class="fas fa-bolt"></i>
+        </div>
+        <h3 class="token-result-title">Token Listrik Berhasil Dibeli!</h3>
+        <p class="token-result-invoice">Invoice: <?= $tokenResult['invoice'] ?></p>
+    </div>
 
-            <div class="flex items-center gap-2 min-w-0">
-                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-user text-white text-xs"></i>
-                </div>
-                <div class="min-w-0 hidden sm:block">
-                    <p class="font-semibold text-gray-800 text-sm truncate"><?= htmlspecialchars($_SESSION['nama_lengkap']) ?></p>
-                    <p class="text-xs text-gray-500"><?= ucfirst($_SESSION['role']) ?></p>
-                </div>
+    <!-- Token Number -->
+    <div class="token-display-wrapper">
+        <p class="token-display-label">Token Listrik (20 Digit)</p>
+        <div class="token-display-value" id="tokenValue"><?= $tokenResult['token'] ?? '' ?></div>
+        <p class="token-note">
+            <i class="fas fa-info-circle"></i>
+            Token hanya muncul sekali, harap dicatat
+        </p>
+    </div>
+
+    <!-- Token Info -->
+    <div class="token-info-grid">
+        <div class="token-info-item">
+            <div class="token-info-label">Nominal Token</div>
+            <div class="token-info-value"><?= rupiah($tokenResult['nominal'] ?? 0) ?></div>
+        </div>
+        <div class="token-info-item">
+            <div class="token-info-label">Total Pembayaran</div>
+            <div class="token-info-value"><?= rupiah($tokenResult['harga'] ?? 0) ?></div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="token-actions">
+        <button class="btn-copy" onclick="copyToken('<?= $tokenResult['token'] ?? '' ?>')">
+            <i class="fas fa-copy"></i> Salin Token
+        </button>
+        <button class="btn-print-token" onclick="printToken()">
+            <i class="fas fa-print"></i> Cetak
+        </button>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Purchase Form -->
+<form method="POST" action="" id="formListrik" onsubmit="return validateForm(event)">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+    <input type="hidden" name="produk_id" id="produk_id" value="">
+
+    <!-- Meter Number Input -->
+    <div class="meter-card">
+        <div class="meter-card-header">
+            <div class="meter-card-icon">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <div>
+                <div class="meter-card-title">PLN Prabayar</div>
+                <div class="meter-card-desc">Masukkan nomor meter pelanggan PLN prabayar</div>
             </div>
         </div>
 
-        <!-- Kanan: Saldo -->
-        <div class="flex items-center gap-2 flex-shrink-0">
-            <div class="bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg text-right">
-                <p class="text-xs text-gray-500 leading-none">Saldo</p>
-                <p class="font-bold text-blue-700 text-sm leading-tight"><?= rupiah($_SESSION['saldo']) ?></p>
+        <label style="display:block;font-weight:500;margin-bottom:8px;">Nomor Meter / ID Pelanggan</label>
+        <div class="meter-input-group">
+            <div class="meter-input-icon">
+                <i class="fas fa-hashtag"></i>
             </div>
+            <input type="text" name="no_meter" id="no_meter"
+                   class="meter-input"
+                   placeholder="Contoh: 12345678901"
+                   required maxlength="13" pattern="[0-9]*"
+                   oninput="this.value = this.value.replace(/[^0-9]/g, ''); detectMeter();">
         </div>
-    </header>
+        <p class="meter-hint">
+            <i class="fas fa-info-circle"></i>
+            Masukkan 11-13 digit nomor meter yang tertera pada token listrik sebelumnya
+        </p>
+    </div>
 
-    <!-- ── Page Body ── -->
-    <div class="p-4 md:p-6 max-w-4xl mx-auto space-y-5">
-
-        <!-- Page Title -->
-        <div class="animate-fade-in-up">
-            <h2 class="text-xl font-bold text-gray-900">Token Listrik PLN</h2>
-            <p class="text-sm text-gray-500 mt-0.5">Isi token listrik prabayar dengan mudah</p>
+    <!-- Placeholder (shown initially) -->
+    <div class="listrik-placeholder" id="tokenPlaceholder">
+        <div class="placeholder-icon">
+            <i class="fas fa-bolt"></i>
         </div>
+        <p class="placeholder-title">Masukkan nomor meter terlebih dahulu</p>
+        <p class="placeholder-text">Pilih nominal akan muncul setelah nomor diisi</p>
+    </div>
 
-        <?php if ($alert): ?>
-        <div class="alert animate-fade-in-up p-4 rounded-lg flex items-center gap-3 <?= $alert['type'] == 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200' ?>">
-            <i class="fas <?= $alert['type'] == 'success' ? 'fa-check-circle text-green-500' : 'fa-exclamation-circle text-red-500' ?> text-lg"></i>
-            <span class="font-medium"><?= $alert['message'] ?></span>
-        </div>
-        <?php endif; ?>
-
-        <?php if ($tokenResult): ?>
-        <!-- Token Result Modal -->
-        <div class="card animate-fade-in-up delay-100 p-6 mb-6 border border-amber-200">
-            <div class="text-center mb-6">
-                <div class="w-16 h-16 pln-badge rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i class="fas fa-bolt text-2xl text-white"></i>
-                </div>
-                <h3 class="text-xl font-bold text-gray-900 mb-1">Token Listrik Berhasil Dibeli!</h3>
-                <p class="text-gray-500 text-sm">Invoice: <?= $tokenResult['invoice'] ?></p>
-            </div>
-            
-            <div class="space-y-4 mb-6">
-                <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
-                    <p class="text-xs text-amber-800 uppercase tracking-wider font-semibold mb-2">Token Listrik (20 Digit)</p>
-                    <div class="token-display text-2xl md:text-3xl font-bold text-gray-900 bg-white p-4 rounded-lg">
-                        <?= $tokenResult['token'] ?>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-2">Token hanya akan muncul sekali, harap dicatat</p>
-                </div>
-                
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div class="bg-gray-50 p-3 rounded-lg">
-                        <p class="text-gray-500 mb-1">Nominal Token</p>
-                        <p class="font-semibold text-gray-900"><?= rupiah($tokenResult['nominal']) ?></p>
-                    </div>
-                    <div class="bg-gray-50 p-3 rounded-lg">
-                        <p class="text-gray-500 mb-1">Total Pembayaran</p>
-                        <p class="font-semibold text-gray-900"><?= rupiah($tokenResult['harga']) ?></p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="flex gap-3">
-                <button onclick="copyToken('<?= $tokenResult['token'] ?>')" class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2">
-                    <i class="fas fa-copy"></i>
-                    Salin Token
-                </button>
-                <button onclick="printToken()" class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition flex items-center justify-center gap-2">
-                    <i class="fas fa-print"></i>
-                    Cetak
-                </button>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <form method="POST" action="" class="space-y-6">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-
-            <!-- Input Nomor Meter -->
-            <div class="card animate-fade-in-up delay-200 p-6">
-                <div class="flex items-center gap-4 mb-6">
-                    <div class="w-14 h-14 pln-badge rounded-full flex items-center justify-center">
-                        <i class="fas fa-bolt text-2xl text-white"></i>
-                    </div>
+    <!-- Token Nominal (shown after input) -->
+    <div class="nominal-card" id="tokenSection" style="display:none;">
+        <h3 class="nominal-card-title">
+            <i class="fas fa-bolt"></i> Pilih Nominal Token Listrik
+        </h3>
+        <div class="nominal-grid">
+            <?php
+            $produkListrik->data_seek(0);
+            while ($p = $produkListrik->fetch_assoc()):
+                $harga = $p['harga_jual'];
+                $nominal = $p['nominal'];
+                $admin = 2500;
+                $hargaTanpaAdmin = $harga - $admin;
+            ?>
+            <div class="token-product-card"
+                 onclick="selectProduct(<?= $p['id'] ?>, 'Token <?= rupiah($nominal) ?>', <?= $harga ?>)">
+                <div class="card-check"><i class="fas fa-check"></i></div>
+                <div class="token-product-top">
                     <div>
-                        <h3 class="text-lg font-semibold text-gray-900">PLN Prabayar</h3>
-                        <p class="text-sm text-gray-500">Masukkan nomor meter pelanggan PLN Prabayar</p>
+                        <div class="token-product-nominal"><?= rupiah($nominal) ?></div>
+                        <div class="token-product-type">
+                            <i class="fas fa-bolt" style="color:#d97706;"></i> Token Listrik
+                        </div>
                     </div>
                 </div>
-                
-                <div class="space-y-2">
-                    <label class="block font-medium text-gray-900">Nomor Meter / ID Pelanggan</label>
-                    <div class="relative">
-                        <div class="absolute left-4 top-1/2 -translate-y-1/2">
-                            <i class="fas fa-hashtag text-gray-400"></i>
-                        </div>
-                        <input type="text" 
-                               name="no_meter" 
-                               id="no_meter" 
-                               class="input-field w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none"
-                               placeholder="Contoh: 12345678901" 
-                               required 
-                               maxlength="13"
-                               pattern="[0-9]*"
-                               oninput="this.value = this.value.replace(/[^0-9]/g, '')">
-                    </div>
-                    <p class="text-xs text-gray-500">
-                        <i class="fas fa-info-circle mr-1"></i>
-                        Masukkan 11-13 digit nomor meter yang tertera pada token listrik sebelumnya
-                    </p>
-                </div>
-            </div>
-            
-            <input type="hidden" name="produk_id" id="produk_id" value="">
-            
-            <!-- Pilih Nominal Token -->
-            <div class="card animate-fade-in-up delay-200 p-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-6">Pilih Nominal Token Listrik</h3>
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <?php while ($p = $produkListrik->fetch_assoc()): 
-                        $harga = $p['harga_jual'];
-                        $nominal = $p['nominal'];
-                        $admin = 2500;
-                        $hargaTanpaAdmin = $harga - $admin;
-                    ?>
-                    <div class="product-card card p-4"
-                         onclick="selectProduct(<?= $p['id'] ?>, 'Token <?= rupiah($nominal) ?>', <?= $harga ?>)">
-                        <div class="space-y-3">
-                            <div class="flex items-start justify-between">
-                                <div class="w-3/4">
-                                    <p class="font-bold text-gray-900"><?= rupiah($nominal) ?></p>
-                                    <p class="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                        <i class="fas fa-bolt text-amber-500"></i>
-                                        <span>Token Listrik</span>
-                                    </p>
-                                </div>
-                                <div class="text-right">
-                                    <div class="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center">
-                                        <div class="w-2.5 h-2.5 rounded-full bg-amber-500 hidden"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="pt-3 border-t border-gray-100">
-                                <p class="text-lg font-bold text-amber-600"><?= rupiah($harga) ?></p>
-                                <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                    <span>Harga: <?= rupiah($hargaTanpaAdmin) ?></span>
-                                    <span>Admin: <?= rupiah($admin) ?></span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endwhile; ?>
-                </div>
-            </div>
-            
-            <!-- Summary Sticky -->
-            <div id="summarySection" class="sticky-summary hidden">
-                <div class="p-6">
-                    <div class="flex items-center justify-between mb-6">
-                        <div>
-                            <p class="text-sm text-gray-500 mb-1">Token yang dipilih</p>
-                            <p class="font-semibold text-gray-900" id="selectedProduct">-</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-sm text-gray-500 mb-1">Total Pembayaran</p>
-                            <p class="text-2xl font-bold text-amber-600" id="totalBayar">Rp 0</p>
-                        </div>
-                    </div>
-                    <div class="flex gap-3">
-                        <button type="button" onclick="resetSelection()" class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition">
-                            <i class="fas fa-times mr-2"></i> Batal
-                        </button>
-                        <button type="submit" class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2">
-                            <i class="fas fa-bolt"></i>
-                            Beli Token
-                        </button>
+                <div class="token-product-pricing">
+                    <div class="token-product-price"><?= rupiah($harga) ?></div>
+                    <div class="token-product-admin">
+                        Harga: <?= rupiah($hargaTanpaAdmin) ?> | Admin: <?= rupiah($admin) ?>
                     </div>
                 </div>
             </div>
-        </form>
+            <?php endwhile; ?>
+        </div>
+    </div>
 
-    </div><!-- /page body -->
-
-    <!-- Footer -->
-    <footer class="border-t border-gray-200 mt-8 px-6 py-4 bg-white">
-        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-2">
-            <p class="text-gray-500 text-xs">&copy; <?= date('Y') ?> PPOB Express. All rights reserved.</p>
-            <div class="flex gap-4">
-                <a href="#" class="text-gray-400 hover:text-blue-600 text-xs transition">Kebijakan Privasi</a>
-                <a href="#" class="text-gray-400 hover:text-blue-600 text-xs transition">Syarat & Ketentuan</a>
+    <!-- Sticky Summary -->
+    <div class="listrik-summary" id="summarySection">
+        <div class="summary-content">
+            <div class="summary-left">
+                <div class="summary-label">Token yang dipilih</div>
+                <div class="summary-product-name" id="selectedProduct">-</div>
+            </div>
+            <div class="summary-right">
+                <div class="summary-price-label">Total Pembayaran</div>
+                <div class="summary-price-value" id="totalBayar">Rp 0</div>
             </div>
         </div>
-    </footer>
-</div><!-- /main-content -->
+        <div class="summary-actions">
+            <button type="button" class="btn-cancel" onclick="resetSelection()">
+                <i class="fas fa-times"></i> Batal
+            </button>
+            <button type="submit" class="btn-submit-token">
+                <i class="fas fa-bolt"></i> Beli Token
+            </button>
+        </div>
+    </div>
+</form>
 
+<!-- ═══════════════════════════════════════════
+     LISTRIK PAGE - JavaScript
+     ═══════════════════════════════════════════ -->
 <script>
-// ═══════════════════════════════════════════════════════
-//  SIDEBAR LOGIC — bekerja di mobile DAN desktop
-// ═══════════════════════════════════════════════════════
+// ══════════ DETECT METER ══════════
+function detectMeter() {
+    const noMeter = document.getElementById('no_meter').value;
+    const placeholder = document.getElementById('tokenPlaceholder');
+    const section = document.getElementById('tokenSection');
 
-const sidebar     = document.getElementById('sidebar');
-const mainContent = document.getElementById('main-content');
-const overlay     = document.getElementById('overlay');
-
-// Key localStorage
-const STORAGE_KEY = 'sidebar_open';
-
-/**
- * Cek apakah layar ≥ 768px (desktop)
- */
-function isDesktop() {
-    return window.innerWidth >= 768;
-}
-
-/**
- * Buka sidebar
- */
-function openSidebar() {
-    if (isDesktop()) {
-        // Desktop: geser sidebar masuk, beri margin pada main
-        sidebar.classList.remove('sidebar-hidden');
-        mainContent.classList.remove('sidebar-hidden');
-        localStorage.setItem(STORAGE_KEY, 'true');
+    if (noMeter.length >= 11) {
+        placeholder.style.display = 'none';
+        section.style.display = 'block';
     } else {
-        // Mobile: slide in + tampilkan overlay
-        sidebar.classList.add('sidebar-open');
-        overlay.classList.add('show');
+        placeholder.style.display = 'block';
+        section.style.display = 'none';
     }
 }
 
-/**
- * Tutup sidebar
- */
-function closeSidebar() {
-    if (isDesktop()) {
-        sidebar.classList.add('sidebar-hidden');
-        mainContent.classList.add('sidebar-hidden');
-        localStorage.setItem(STORAGE_KEY, 'false');
-    } else {
-        sidebar.classList.remove('sidebar-open');
-        overlay.classList.remove('show');
-    }
-}
-
-/**
- * Toggle sidebar — dipanggil tombol hamburger
- */
-function toggleSidebar() {
-    if (isDesktop()) {
-        // Desktop: cek apakah saat ini hidden
-        const isHidden = sidebar.classList.contains('sidebar-hidden');
-        isHidden ? openSidebar() : closeSidebar();
-    } else {
-        // Mobile: cek apakah saat ini open
-        const isOpen = sidebar.classList.contains('sidebar-open');
-        isOpen ? closeSidebar() : openSidebar();
-    }
-}
-
-/**
- * Inisialisasi state saat halaman dimuat
- */
-function initSidebar() {
-    if (isDesktop()) {
-        // Desktop: baca dari localStorage (default: terbuka)
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved === 'false') {
-            // User sebelumnya menutup → tetap tutup
-            sidebar.classList.add('sidebar-hidden');
-            mainContent.classList.add('sidebar-hidden');
-        } else {
-            // Default terbuka
-            sidebar.classList.remove('sidebar-hidden');
-            sidebar.classList.remove('sidebar-open');
-            mainContent.classList.remove('sidebar-hidden');
-            overlay.classList.remove('show');
-        }
-    } else {
-        // Mobile: selalu mulai tertutup
-        sidebar.classList.remove('sidebar-hidden');
-        sidebar.classList.remove('sidebar-open');
-        mainContent.classList.remove('sidebar-hidden');
-        overlay.classList.remove('show');
-    }
-}
-
-// Jalankan saat load
-document.addEventListener('DOMContentLoaded', initSidebar);
-
-// Re-inisialisasi saat resize (pindah breakpoint)
-let resizeTimer;
-window.addEventListener('resize', function () {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(initSidebar, 100);
-});
-
-// Tutup sidebar mobile saat klik menu item
-document.querySelectorAll('.menu-item').forEach(item => {
-    item.addEventListener('click', () => {
-        if (!isDesktop()) closeSidebar();
-    });
-});
-
-// ═══════════════════════════════════════════════════════
-//  PRODUCT SELECTION LOGIC
-// ═══════════════════════════════════════════════════════
-
+// ══════════ SELECT PRODUCT ══════════
 function selectProduct(id, nama, harga) {
-    // Remove all selections
-    document.querySelectorAll('.product-card').forEach(el => {
+    // Remove previous selections
+    document.querySelectorAll('.token-product-card').forEach(el => {
         el.classList.remove('selected');
-        el.querySelector('.w-2\.5.h-2\.5').classList.add('hidden');
     });
-    
-    // Add selection to clicked card
+
+    // Select current
     const card = event.currentTarget;
     card.classList.add('selected');
-    card.querySelector('.w-2\.5.h-2\.5').classList.remove('hidden');
-    
-    // Update form values
+
+    // Update form
     document.getElementById('produk_id').value = id;
     document.getElementById('selectedProduct').textContent = nama;
     document.getElementById('totalBayar').textContent = formatRupiah(harga);
-    document.getElementById('summarySection').classList.remove('hidden');
-    
-    // Scroll to summary
-    document.getElementById('summarySection').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Show summary
+    document.getElementById('summarySection').style.display = 'block';
 }
 
 function resetSelection() {
-    document.querySelectorAll('.product-card').forEach(el => {
+    document.querySelectorAll('.token-product-card').forEach(el => {
         el.classList.remove('selected');
-        el.querySelector('.w-2\.5.h-2\.5').classList.add('hidden');
     });
-    
     document.getElementById('produk_id').value = '';
     document.getElementById('selectedProduct').textContent = '-';
     document.getElementById('totalBayar').textContent = 'Rp 0';
-    document.getElementById('summarySection').classList.add('hidden');
+    document.getElementById('summarySection').style.display = 'none';
 }
 
+// ══════════ FORMAT ══════════
 function formatRupiah(num) {
     return 'Rp ' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
+// ══════════ TOAST ══════════
+function showToast(message, type = 'info') {
+    const existing = document.getElementById('toastNotif');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'toastNotif';
+    toast.className = 'toast-msg ' + type;
+    toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i><span>${message}</span>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
+// ══════════ FORM VALIDATION ══════════
+function validateForm(e) {
+    const noMeter = document.getElementById('no_meter').value;
+    const produkId = document.getElementById('produk_id').value;
+    const selectedProduct = document.getElementById('selectedProduct').textContent;
+    const totalBayar = document.getElementById('totalBayar').textContent;
+
+    if (!noMeter || noMeter.length < 11) {
+        e.preventDefault();
+        showToast('Masukkan nomor meter yang valid (11-13 digit)', 'error');
+        return false;
+    }
+
+    if (!produkId) {
+        e.preventDefault();
+        showToast('Pilih nominal token terlebih dahulu', 'error');
+        return false;
+    }
+
+    if (!confirm(`Konfirmasi Pembelian Token Listrik\n\nNo. Meter: ${noMeter}\nNominal: ${selectedProduct}\nTotal: ${totalBayar}\n\nLanjutkan?`)) {
+        e.preventDefault();
+        return false;
+    }
+
+    return true;
+}
+
+// ══════════ COPY TOKEN ══════════
 function copyToken(token) {
     const cleanToken = token.replace(/-/g, '');
     navigator.clipboard.writeText(cleanToken);
-    
-    // Show success message
+
     const button = event.target.closest('button');
     const originalHTML = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-check mr-2"></i> Token Disalin!';
-    button.style.backgroundColor = '#10b981';
-    
+    button.innerHTML = '<i class="fas fa-check"></i> Token Disalin!';
+    button.style.background = '#16a34a';
+
     setTimeout(() => {
         button.innerHTML = originalHTML;
-        button.style.backgroundColor = '';
+        button.style.background = '';
     }, 2000);
 }
 
+// ══════════ PRINT TOKEN ══════════
 function printToken() {
     const printContent = `
-        <div style="padding: 20px; font-family: Arial, sans-serif;">
-            <h2 style="text-align: center; color: #f59e0b;">TOKEN LISTRIK PLN</h2>
-            <p style="text-align: center; color: #666;">Invoice: <?= $tokenResult['invoice'] ?? '' ?></p>
-            <div style="background: #fff; border: 2px dashed #f59e0b; padding: 20px; margin: 20px 0; text-align: center;">
-                <p style="color: #999; margin-bottom: 10px;">Token Listrik (20 Digit)</p>
-                <p style="font-size: 24px; font-weight: bold; letter-spacing: 2px;"><?= $tokenResult['token'] ?? '' ?></p>
+        <div style="padding:20px;font-family:Arial,sans-serif;">
+            <h2 style="text-align:center;color:#5fe9b0;">TOKEN LISTRIK PLN</h2>
+            <p style="text-align:center;color:#666;">Invoice: <?= $tokenResult['invoice'] ?? '' ?></p>
+            <div style="background:#fff;padding:16px;border:2px dashed #5fe9b0;border-radius:8px;margin:20px 0;text-align:center;">
+                <p style="color:#999;margin-bottom:8px;">Token Listrik (20 Digit)</p>
+                <p style="font-size:24px;font-weight:bold;letter-spacing:2px;"><?= $tokenResult['token'] ?? '' ?></p>
             </div>
-            <div style="display: flex; justify-content: space-between; margin: 20px 0;">
+            <div style="display:flex;justify-content:space-between;margin:20px 0;">
                 <div>
-                    <p style="color: #666;">Nominal:</p>
-                    <p style="font-weight: bold;"><?= rupiah($tokenResult['nominal'] ?? 0) ?></p>
+                    <p style="color:#666;">Nominal:</p>
+                    <p style="font-weight:bold;"><?= rupiah($tokenResult['nominal'] ?? 0) ?></p>
                 </div>
                 <div>
-                    <p style="color: #666;">Total Bayar:</p>
-                    <p style="font-weight: bold;"><?= rupiah($tokenResult['harga'] ?? 0) ?></p>
+                    <p style="color:#666;">Total Bayar:</p>
+                    <p style="font-weight:bold;"><?= rupiah($tokenResult['harga'] ?? 0) ?></p>
                 </div>
             </div>
-            <p style="text-align: center; color: #999; font-size: 12px; margin-top: 30px;">
+            <p style="text-align:center;color:#999;font-size:12px;margin-top:30px;">
                 Dicetak dari PPOB Express pada <?= date('d/m/Y H:i:s') ?>
             </p>
-        </div>
-    `;
-    
+        </div>`;
+
     const printWindow = window.open('', '_blank');
     printWindow.document.write('<html><head><title>Token Listrik</title></head><body>');
     printWindow.document.write(printContent);
@@ -791,8 +686,7 @@ function printToken() {
 }
 </script>
 
-</body>
-</html>
-<?php 
+<?php
+require_once 'layout_footer.php';
 $conn->close();
 ?>

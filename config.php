@@ -1,29 +1,30 @@
 <?php
-// =============================================
-// KONFIGURASI DATABASE PPOB - SECURED
-// =============================================
+// Start session safely
+if (session_status() === PHP_SESSION_NONE) {
 
-// Security: Define secure session parameters BEFORE session_start
-ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_secure', isset($_SERVER['HTTPS']));
-ini_set('session.cookie_samesite', 'Strict');
-ini_set('session.use_strict_mode', 1);
-ini_set('session.gc_maxlifetime', 3600); // 1 hour
+    // === SESSION CONFIG (HARUS DI SINI) ===
+    ini_set('session.cookie_httponly', '1');
+    ini_set(
+        'session.cookie_secure',
+        (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? '1' : '0'
+    );
 
-// Start Session dengan keamanan
-if (session_status() == PHP_SESSION_NONE) {
+    if (PHP_VERSION_ID >= 70300) {
+        ini_set('session.cookie_samesite', 'Strict');
+    }
+
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.gc_maxlifetime', '3600');
+
     session_start();
-    
-    // Regenerate session ID periodically for security
-    if (!isset($_SESSION['created'])) {
-        $_SESSION['created'] = time();
-    } else if (time() - $_SESSION['created'] > 1800) {
-        // Regenerate session ID every 30 minutes
+
+    // Regenerate session ID every 30 minutes
+    if (!isset($_SESSION['created']) || time() - $_SESSION['created'] > 1800) {
         session_regenerate_id(true);
         $_SESSION['created'] = time();
     }
-    
-    // Initialize CSRF token if not exists
+
+    // CSRF token
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
@@ -178,5 +179,133 @@ function getAlert() {
         return $alert;
     }
     return null;
+}
+
+// ===========================================
+// RATE LIMITING - Prevent API Abuse
+// ===========================================
+function checkRateLimit($endpoint, $maxRequests = 10, $windowSeconds = 60) {
+    $conn = koneksi();
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $now = date('Y-m-d H:i:s');
+    $windowStart = date('Y-m-d H:i:s', strtotime("-{$windowSeconds} seconds"));
+    
+    // Clean old records
+    $stmt = $conn->prepare("DELETE FROM rate_limits WHERE window_start < ?");
+    $stmt->bind_param("s", $windowStart);
+    $stmt->execute();
+    
+    // Check current count
+    $stmt = $conn->prepare("SELECT requests_count FROM rate_limits WHERE ip_address = ? AND endpoint = ? AND window_start >= ?");
+    $stmt->bind_param("sss", $ip, $endpoint, $windowStart);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($row = $result->fetch_assoc()) {
+        if ($row['requests_count'] >= $maxRequests) {
+            return false; // Rate limit exceeded
+        }
+        // Increment
+        $stmt = $conn->prepare("UPDATE rate_limits SET requests_count = requests_count + 1 WHERE ip_address = ? AND endpoint = ? AND window_start >= ?");
+        $stmt->bind_param("sss", $ip, $endpoint, $windowStart);
+        $stmt->execute();
+    } else {
+        // Insert new
+        $stmt = $conn->prepare("INSERT INTO rate_limits (ip_address, endpoint, requests_count, window_start) VALUES (?, ?, 1, NOW())");
+        $stmt->bind_param("ss", $ip, $endpoint);
+        $stmt->execute();
+    }
+    
+    return true;
+}
+
+// ===========================================
+// TRANSACTION LOCK - Prevent Race Condition
+// ===========================================
+function acquireLock($lockKey, $userId, $expiresInSeconds = 30) {
+    $conn = koneksi();
+    $expiresAt = date('Y-m-d H:i:s', strtotime("+{$expiresInSeconds} seconds"));
+    
+    // Try to acquire lock
+    $stmt = $conn->prepare("INSERT INTO transaction_locks (lock_key, user_id, expires_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE id = id");
+    $stmt->bind_param("sis", $lockKey, $userId, $expiresAt);
+    $stmt->execute();
+    
+    // Check if we got the lock
+    $stmt = $conn->prepare("SELECT id FROM transaction_locks WHERE lock_key = ? AND user_id = ? AND expires_at > NOW()");
+    $stmt->bind_param("si", $lockKey, $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    return $result->num_rows > 0;
+}
+
+function releaseLock($lockKey, $userId) {
+    $conn = koneksi();
+    $stmt = $conn->prepare("DELETE FROM transaction_locks WHERE lock_key = ? AND user_id = ?");
+    $stmt->bind_param("si", $lockKey, $userId);
+    return $stmt->execute();
+}
+
+function isLocked($lockKey) {
+    $conn = koneksi();
+    $stmt = $conn->prepare("SELECT id FROM transaction_locks WHERE lock_key = ? AND expires_at > NOW()");
+    $stmt->bind_param("s", $lockKey);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->num_rows > 0;
+}
+
+// ===========================================
+// EMAIL QUEUE - Async Email Sending
+// ===========================================
+function queueEmail($toEmail, $subject, $body) {
+    $conn = koneksi();
+    $stmt = $conn->prepare("INSERT INTO email_queue (to_email, subject, body) VALUES (?, ?, ?)");
+    $stmt->bind_param("sss", $toEmail, $subject, $body);
+    return $stmt->execute();
+}
+
+function processEmailQueue($limit = 10) {
+    $conn = koneksi();
+    
+    // Get pending emails
+    $stmt = $conn->prepare("SELECT * FROM email_queue WHERE status = 'pending' AND attempts < max_attempts ORDER BY created_at ASC LIMIT ?");
+    $stmt->bind_param("i", $limit);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    while ($email = $result->fetch_assoc()) {
+        // Try to send email
+        $sent = sendEmail($email['to_email'], $email['subject'], $email['body']);
+        
+        if ($sent) {
+            $stmt = $conn->prepare("UPDATE email_queue SET status = 'sent', sent_at = NOW() WHERE id = ?");
+        } else {
+            $stmt = $conn->prepare("UPDATE email_queue SET attempts = attempts + 1 WHERE id = ?");
+        }
+        $stmt->bind_param("i", $email['id']);
+        $stmt->execute();
+    }
+}
+
+function sendEmail($to, $subject, $body) {
+    // Simple mail() wrapper - replace with SMTP in production
+    $headers = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type:text/html;charset=UTF-8\r\n";
+    $headers .= "From: noreply@" . ($_SERVER['HTTP_HOST'] ?? 'localhost') . "\r\n";
+    
+    return mail($to, $subject, $body, $headers);
+}
+
+// ===========================================
+// API RESPONSE HELPER
+// ===========================================
+function saveApiResponse($transaksiId, $response) {
+    $conn = koneksi();
+    $stmt = $conn->prepare("UPDATE transaksi SET api_response = ? WHERE id = ?");
+    $jsonResponse = json_encode($response);
+    $stmt->bind_param("si", $jsonResponse, $transaksiId);
+    return $stmt->execute();
 }
 ?>

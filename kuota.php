@@ -2,57 +2,84 @@
 require_once 'config.php';
 cekLogin();
 $conn = koneksi();
-$id_user = $_SESSION['id_user'];
-$_SESSION['saldo'] = getSaldo($id_user);
+$user_id = $_SESSION['user_id'];
+$_SESSION['saldo'] = getSaldo($user_id);
 
-// Ambil produk kuota
+// ═══ Helper Functions ═══
+function formatBytes($bytes, $precision = 2) {
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    $bytes = max($bytes, 0);
+    $pow = floor(log($bytes ? $bytes : 1) / log(1024));
+    $pow = min($pow, count($units) - 1);
+    $bytes /= pow(1024, $pow);
+    return round($bytes, $precision) . ' ' . $units[$pow];
+}
+
+function getKategoriKuota($nama) {
+    $nama = strtolower($nama);
+    if (preg_match('/(daily|harian|1\s*hari)/', $nama)) return 'harian';
+    if (preg_match('/(mingguan|weekly|7\s*hari)/', $nama)) return 'mingguan';
+    if (preg_match('/(bulan|30\s*hari|business|30hr)/', $nama)) return 'bulanan';
+    if (preg_match('/(gaming|game)/', $nama)) return 'gaming';
+    if (preg_match('/(streaming|youtube|netflix|spotify|disney|vision)/', $nama)) return 'streaming';
+    if (preg_match('/(sosmed|social|instagram|fb|facebook|twitter|tiktok|whatsapp|wa|telegram)/', $nama)) return 'sosmed';
+    if (preg_match('/(malam|night|midnight|0\s*30)/', $nama)) return 'malam';
+    return 'lainnya';
+}
+
+$daftarKategori = [
+    'harian'    => ['label' => 'Harian',    'icon' => 'fa-sun'],
+    'mingguan'  => ['label' => 'Mingguan',  'icon' => 'fa-calendar-week'],
+    'bulanan'   => ['label' => 'Bulanan',   'icon' => 'fa-calendar-alt'],
+    'gaming'    => ['label' => 'Gaming',    'icon' => 'fa-gamepad'],
+    'streaming' => ['label' => 'Streaming', 'icon' => 'fa-play-circle'],
+    'sosmed'    => ['label' => 'Sosmed',    'icon' => 'fa-share-alt'],
+    'malam'     => ['label' => 'Malam',     'icon' => 'fa-moon'],
+    'lainnya'   => ['label' => 'Lainnya',   'icon' => 'fa-ellipsis-h'],
+];
+
+// ═══ Ambil Produk Kuota ═══
 $produkKuota = $conn->query("SELECT * FROM produk WHERE kategori_id = 2 AND status = 'active' ORDER BY provider, harga_jual");
 $produkByProvider = [];
 while ($row = $produkKuota->fetch_assoc()) {
     $produkByProvider[$row['provider']][] = $row;
 }
 
-// Proses pembelian
+// ═══ Proses Pembelian ═══
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $csrf_token = $_POST['csrf_token'] ?? '';
     if (!validateCSRFToken($csrf_token)) {
         setAlert('error', 'Sesi tidak valid. Silakan refresh halaman.');
-        header("Location: kuota.php");
-        exit;
+        header("Location: kuota.php"); exit;
     }
-
     $no_hp = preg_replace('/[^0-9]/', '', $_POST['no_hp'] ?? '');
-    $id_produk = intval($_POST['id_produk'] ?? 0);
+    $produk_id = intval($_POST['produk_id'] ?? 0);
 
     if (empty($no_hp) || strlen($no_hp) < 10 || strlen($no_hp) > 15) {
         setAlert('error', 'Nomor HP tidak valid! (10-15 digit)');
-    } elseif ($id_produk == 0 || $id_produk > 100000) {
+    } elseif ($produk_id == 0 || $produk_id > 100000) {
         setAlert('error', 'Pilih paket data yang valid!');
     } else {
         $stmt = $conn->prepare("SELECT * FROM produk WHERE id = ?");
-        $stmt->bind_param("i", $id_produk);
+        $stmt->bind_param("i", $produk_id);
         $stmt->execute();
         $produk = $stmt->get_result()->fetch_assoc();
-
         if (!$produk) {
             setAlert('error', 'Produk tidak ditemukan!');
         } else {
             $harga = $produk['harga_jual'];
-            $saldo = getSaldo($id_user);
-
+            $saldo = getSaldo($user_id);
             if ($saldo < $harga) {
                 setAlert('error', 'Saldo tidak mencukupi! Silakan deposit terlebih dahulu.');
             } else {
                 $invoice = generateInvoice();
                 $saldo_sebelum = $saldo;
                 $saldo_sesudah = $saldo - $harga;
-
-                $stmt = $conn->prepare("INSERT INTO transaksi (id_user, id_produk, no_invoice, jenis_transaksi, no_tujuan, nominal, harga, biaya_admin, total_bayar, saldo_sebelum, saldo_sesudah, status, keterangan) VALUES (?, ?, ?, 'kuota', ?, ?, ?, 0, ?, ?, ?, 'success', 'Pembelian paket data berhasil')");
-                $stmt->bind_param("iissddddd", $id_user, $id_produk, $invoice, $no_hp, $produk['nominal'], $harga, $harga, $saldo_sebelum, $saldo_sesudah);
-
+                $stmt = $conn->prepare("INSERT INTO transaksi (user_id, produk_id, invoice_no, jenis_transaksi, no_tujuan, nominal, harga, biaya_admin, total_bayar, saldo_sebelum, saldo_sesudah, status, keterangan) VALUES (?, ?, ?, 'kuota', ?, ?, ?, 0, ?, ?, ?, 'success', 'Pembelian paket data berhasil')");
+                $stmt->bind_param("iissddddd", $user_id, $produk_id, $invoice, $no_hp, $produk['nominal'], $harga, $harga, $saldo_sebelum, $saldo_sesudah);
                 if ($stmt->execute()) {
-                    updateSaldo($id_user, $harga, 'kurang');
-                    $_SESSION['saldo'] = getSaldo($id_user);
+                    updateSaldo($user_id, $harga, 'kurang');
+                    $_SESSION['saldo'] = getSaldo($user_id);
                     setAlert('success', 'Pembelian paket data berhasil! Invoice: ' . $invoice);
                 } else {
                     setAlert('error', 'Terjadi kesalahan. Silakan coba lagi.');
@@ -60,1194 +87,533 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
     }
-    header("Location: kuota.php");
-    exit;
+    header("Location: kuota.php"); exit;
 }
 
-$alert = getAlert();
+// ═══ Layout Variables ═══
+$pageTitle   = 'Paket Data';
+$pageIcon    = 'fas fa-wifi';
+$pageDesc    = 'Pilih paket data sesuai kebutuhan Anda';
+$currentPage = 'kuota';
+$alert       = getAlert();
 
-function formatBytes($bytes, $precision = 2) {
-    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    $bytes = max(0, $bytes);
-    $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
-    $pow = min($pow, count($units) - 1);
-    $bytes /= pow(1024, $pow);
-    return round($bytes, $precision) . ' ' . $units[$pow];
-}
+include 'layout.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Paket Data - PPOB Express</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        * { box-sizing: border-box; }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f1f5f9;
-            min-height: 100vh;
-        }
 
-        /* ========== SIDEBAR ========== */
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 260px;
-            height: 100vh;
-            background: #ffffff;
-            border-right: 1px solid #e2e8f0;
-            z-index: 50;
-            display: flex;
-            flex-direction: column;
-            transition: transform 0.3s ease;
-        }
-
-        .sidebar.closed {
-            transform: translateX(-100%);
-        }
-
-        .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid #e2e8f0;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .sidebar-logo {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 18px;
-        }
-
-        .sidebar-brand {
-            font-size: 20px;
-            font-weight: 700;
-            color: #1e293b;
-        }
-
-        .sidebar-brand span {
-            color: #2563eb;
-        }
-
-        .sidebar-nav {
-            flex: 1;
-            padding: 16px 12px;
-            overflow-y: auto;
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            border-radius: 10px;
-            color: #64748b;
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 500;
-            margin-bottom: 4px;
-            transition: all 0.2s ease;
-        }
-
-        .nav-item:hover {
-            background: #f1f5f9;
-            color: #2563eb;
-        }
-
-        .nav-item.active {
-            background: #eff6ff;
-            color: #2563eb;
-            font-weight: 600;
-        }
-
-        .nav-item i {
-            width: 20px;
-            text-align: center;
-        }
-
-        .nav-divider {
-            height: 1px;
-            background: #e2e8f0;
-            margin: 16px 0;
-        }
-
-        .nav-label {
-            font-size: 11px;
-            font-weight: 600;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 0 16px;
-            margin-bottom: 8px;
-        }
-
-        .sidebar-footer {
-            padding: 16px;
-            border-top: 1px solid #e2e8f0;
-        }
-
-        /* ========== OVERLAY ========== */
-        .overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 40;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .overlay.show {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        /* ========== MAIN CONTENT ========== */
-        .main-wrapper {
-            margin-left: 260px;
-            min-height: 100vh;
-            transition: margin-left 0.3s ease;
-        }
-
-        .main-wrapper.expanded {
-            margin-left: 0;
-        }
-
-        /* ========== TOP HEADER ========== */
-        .top-header {
-            position: sticky;
-            top: 0;
-            z-index: 30;
-            background: #ffffff;
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid #e2e8f0;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .toggle-btn {
-            width: 40px;
-            height: 40px;
-            border: none;
-            background: #f1f5f9;
-            border-radius: 10px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #64748b;
-            font-size: 18px;
-            transition: all 0.2s ease;
-        }
-
-        .toggle-btn:hover {
-            background: #e2e8f0;
-            color: #2563eb;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .user-avatar {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 14px;
-        }
-
-        .user-details {
-            display: none;
-        }
-
-        .user-name {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1e293b;
-        }
-
-        .user-role {
-            font-size: 12px;
-            color: #64748b;
-        }
-
-        .saldo-box {
-            background: linear-gradient(135deg, #eff6ff, #dbeafe);
-            border: 1px solid #bfdbfe;
-            padding: 8px 16px;
-            border-radius: 10px;
-            text-align: right;
-        }
-
-        .saldo-label {
-            font-size: 11px;
-            color: #64748b;
-        }
-
-        .saldo-value {
-            font-size: 14px;
-            font-weight: 700;
-            color: #2563eb;
-        }
-
-        /* ========== PAGE CONTENT ========== */
-        .page-content {
-            padding: 24px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .page-title {
-            margin-bottom: 24px;
-        }
-
-        .page-title h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #1e293b;
-            margin-bottom: 4px;
-        }
-
-        .page-title p {
-            font-size: 14px;
-            color: #64748b;
-        }
-
-        /* ========== ALERT ========== */
-        .alert {
-            padding: 16px;
-            border-radius: 12px;
-            margin-bottom: 24px;
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            animation: slideDown 0.3s ease;
-        }
-
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .alert-success {
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            color: #166534;
-        }
-
-        .alert-error {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #991b1b;
-        }
-
-        .alert i {
-            font-size: 18px;
-            margin-top: 2px;
-        }
-
-        .alert-message {
-            flex: 1;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        /* ========== CARD ========== */
-        .card {
-            background: #ffffff;
-            border-radius: 16px;
-            border: 1px solid #e2e8f0;
-            overflow: hidden;
-            margin-bottom: 24px;
-        }
-
-        .card-body {
-            padding: 20px;
-        }
-
-        .card-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 16px;
-        }
-
-        /* ========== INPUT FIELD ========== */
-        .input-group {
-            position: relative;
-        }
-
-        .input-icon {
-            position: absolute;
-            left: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #94a3b8;
-            font-size: 16px;
-        }
-
-        .input-field {
-            width: 100%;
-            padding: 14px 16px 14px 48px;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            font-size: 15px;
-            color: #1e293b;
-            transition: all 0.2s ease;
-            outline: none;
-        }
-
-        .input-field:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-        }
-
-        .input-field::placeholder {
-            color: #94a3b8;
-        }
-
-        .input-hint {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 12px;
-            font-size: 13px;
-            color: #64748b;
-        }
-
-        .provider-detected {
-            color: #2563eb;
-            font-weight: 600;
-        }
-
-        /* ========== PROVIDER SECTION ========== */
-        .provider-section {
-            margin-bottom: 24px;
-        }
-
-        .provider-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        .provider-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            font-weight: 700;
-            color: white;
-        }
-
-        .provider-icon.telkomsel { background: linear-gradient(135deg, #dc2626, #991b1b); }
-        .provider-icon.indosat { background: linear-gradient(135deg, #f59e0b, #d97706); }
-        .provider-icon.xl { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
-        .provider-icon.tri { background: linear-gradient(135deg, #ec4899, #be185d); }
-        .provider-icon.axis { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
-        .provider-icon.smartfren { background: linear-gradient(135deg, #ef4444, #dc2626); }
-
-        .provider-name {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1e293b;
-        }
-
-        .provider-subtitle {
-            font-size: 13px;
-            color: #64748b;
-        }
-
-        /* ========== PRODUCT GRID ========== */
-        .product-grid {
-            display: grid;
-            grid-template-columns: repeat(1, 1fr);
-            gap: 12px;
-        }
-
-        /* ========== PRODUCT CARD ========== */
-        .product-card {
-            background: #ffffff;
-            border: 2px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 16px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            position: relative;
-        }
-
-        .product-card:hover {
-            border-color: #93c5fd;
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
-            transform: translateY(-2px);
-        }
-
-        .product-card.selected {
-            border-color: #2563eb;
-            background: linear-gradient(135deg, #eff6ff, #dbeafe);
-            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.2);
-        }
-
-        .product-content {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 12px;
-        }
-
-        .product-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .product-name {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 6px;
-            line-height: 1.4;
-        }
-
-        .product-meta {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .product-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 4px 8px;
-            background: #f1f5f9;
-            border-radius: 6px;
-            font-size: 11px;
-            color: #64748b;
-        }
-
-        .product-price-section {
-            text-align: right;
-            flex-shrink: 0;
-        }
-
-        .product-price {
-            font-size: 16px;
-            font-weight: 700;
-            color: #2563eb;
-        }
-
-        .product-quota {
-            font-size: 12px;
-            color: #64748b;
-            margin-top: 4px;
-        }
-
-        .product-radio {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            width: 22px;
-            height: 22px;
-            border: 2px solid #cbd5e1;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-        }
-
-        .product-card.selected .product-radio {
-            border-color: #2563eb;
-            background: #2563eb;
-        }
-
-        .product-radio-dot {
-            width: 8px;
-            height: 8px;
-            background: white;
-            border-radius: 50%;
-            opacity: 0;
-            transform: scale(0);
-            transition: all 0.2s ease;
-        }
-
-        .product-card.selected .product-radio-dot {
-            opacity: 1;
-            transform: scale(1);
-        }
-
-        /* ========== STICKY SUMMARY ========== */
-        .sticky-summary {
-            position: fixed;
-            bottom: 0;
-            left: 260px;
-            right: 0;
-            background: #ffffff;
-            border-top: 1px solid #e2e8f0;
-            padding: 16px 24px;
-            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
-            z-index: 35;
-            transform: translateY(100%);
-            transition: all 0.3s ease;
-        }
-
-        .sticky-summary.show {
-            transform: translateY(0);
-        }
-
-        .sticky-summary.expanded {
-            left: 0;
-        }
-
-        .summary-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-        }
-
-        .summary-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .summary-label {
-            font-size: 12px;
-            color: #64748b;
-            margin-bottom: 2px;
-        }
-
-        .summary-product {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1e293b;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .summary-price-section {
-            text-align: right;
-        }
-
-        .summary-price {
-            font-size: 20px;
-            font-weight: 700;
-            color: #2563eb;
-        }
-
-        .summary-actions {
-            display: flex;
-            gap: 12px;
-        }
-
-        .btn {
-            padding: 12px 24px;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .btn-secondary {
-            background: #f1f5f9;
-            color: #64748b;
-            border: 1px solid #e2e8f0;
-        }
-
-        .btn-secondary:hover {
-            background: #e2e8f0;
-            color: #475569;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            color: white;
-            min-width: 160px;
-        }
-
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #1d4ed8, #1e40af);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-            transform: translateY(-1px);
-        }
-
-        /* ========== FOOTER ========== */
-        .footer {
-            padding: 20px 24px;
-            border-top: 1px solid #e2e8f0;
-            background: #ffffff;
-            margin-top: 40px;
-        }
-
-        .footer-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
-
-        .footer-text {
-            font-size: 13px;
-            color: #64748b;
-        }
-
-        .footer-links {
-            display: flex;
-            gap: 24px;
-        }
-
-        .footer-link {
-            font-size: 13px;
-            color: #64748b;
-            text-decoration: none;
-            transition: color 0.2s ease;
-        }
-
-        .footer-link:hover {
-            color: #2563eb;
-        }
-
-        /* ========== RESPONSIVE ========== */
-        @media (min-width: 640px) {
-            .product-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .user-details {
-                display: block;
-            }
-        }
-
-        @media (min-width: 1024px) {
-            .product-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-
-        @media (max-width: 768px) {
-            .sidebar {
-                transform: translateX(-100%);
-            }
-
-            .sidebar.open {
-                transform: translateX(0);
-            }
-
-            .main-wrapper {
-                margin-left: 0;
-            }
-
-            .top-header {
-                padding: 12px 16px;
-            }
-
-            .page-content {
-                padding: 16px;
-            }
-
-            .page-title h1 {
-                font-size: 20px;
-            }
-
-            .card-body {
-                padding: 16px;
-            }
-
-            .sticky-summary {
-                left: 0;
-                padding: 12px 16px;
-            }
-
-            .summary-content {
-                flex-wrap: wrap;
-            }
-
-            .summary-info {
-                flex: 1 1 100%;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 12px;
-            }
-
-            .summary-price-section {
-                text-align: right;
-            }
-
-            .summary-actions {
-                width: 100%;
-            }
-
-            .btn {
-                flex: 1;
-                padding: 14px 16px;
-            }
-
-            .btn-primary {
-                flex: 2;
-                min-width: auto;
-            }
-
-            .footer-content {
-                flex-direction: column;
-                text-align: center;
-            }
-
-            .footer-links {
-                justify-content: center;
-            }
-        }
-
-        /* ========== EMPTY STATE ========== */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-        }
-
-        .empty-icon {
-            width: 80px;
-            height: 80px;
-            background: #f1f5f9;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-        }
-
-        .empty-icon i {
-            font-size: 32px;
-            color: #94a3b8;
-        }
-
-        .empty-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 8px;
-        }
-
-        .empty-text {
-            font-size: 14px;
-            color: #64748b;
-        }
-
-        /* ========== LOADING ========== */
-        .btn-loading {
-            position: relative;
-            color: transparent !important;
-            pointer-events: none;
-        }
-
-        .btn-loading::after {
-            content: '';
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            border: 2px solid #ffffff;
-            border-right-color: transparent;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-    </style>
-</head>
-<body>
-
-<!-- Sidebar -->
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <div class="sidebar-logo">
-            <i class="fas fa-wallet"></i>
+<!-- ═══════════════════════════════════════════
+     KUOTA PAGE - Custom Styles
+     ═══════════════════════════════════════════ -->
+<style>
+/* ── Phone Input ── */
+.phone-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+.phone-card-title {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+}
+.phone-card-title i { color: var(--primary); font-size: 16px; }
+.phone-group { position: relative; }
+.phone-group .input-icon {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); font-size: 16px; pointer-events: none;
+    transition: color 0.2s ease;
+}
+.phone-group:focus-within .input-icon { color: var(--primary); }
+.phone-field {
+    width: 100%; padding: 12px 12px 12px 44px;
+    border: 2px solid var(--border); border-radius: 12px;
+    font-size: 15px; color: var(--text); background: var(--bg);
+    outline: none; transition: all 0.2s ease;
+}
+.phone-field:focus {
+    border-color: var(--primary); background: var(--surface);
+    box-shadow: 0 0 0 3px rgba(99,83,216,0.08);
+}
+.phone-field::placeholder { color: var(--text-muted); }
+.provider-hint {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 10px; font-size: 13px; color: var(--text-muted); min-height: 20px;
+}
+.provider-detected { font-weight: 600; color: var(--primary); }
+
+/* ── Provider Section ── */
+.provider-section { margin-bottom: 28px; display: none; }
+.provider-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 12px; padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+.provider-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 14px; flex-shrink: 0;
+}
+.provider-icon.telkomsel { background: linear-gradient(135deg, #cd6262, #9b91b1); }
+.provider-icon.indosat   { background: linear-gradient(135deg, #5fe9b0, #9d7706); }
+.provider-icon.xl        { background: linear-gradient(135deg, #e0a59e, #02847c); }
+.provider-icon.tri       { background: linear-gradient(135deg, #ce8499, #eb81d5); }
+.provider-icon.axis      { background: linear-gradient(135deg, #b8c5a3, #7ca3de); }
+.provider-icon.smartfren { background: linear-gradient(135deg, #cd4444, #6262cd); }
+.provider-info { flex: 1; }
+.provider-name { font-size: 15px; font-weight: 600; color: var(--text); }
+.provider-count { font-size: 12px; color: var(--text-muted); }
+
+/* ── Filter Tabs ── */
+.filter-tabs {
+    display: flex; gap: 8px; overflow-x: auto;
+    padding-bottom: 12px; margin-bottom: 12px;
+    scrollbar-width: none;
+}
+.filter-tabs::-webkit-scrollbar { display: none; }
+.filter-tab {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 12px; border: 1.5px solid var(--border);
+    border-radius: 999px; background: var(--surface);
+    color: var(--text-secondary); font-size: 12px; font-weight: 500;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+.filter-tab:hover { border-color: var(--primary); color: var(--primary); }
+.filter-tab.active {
+    background: var(--primary); border-color: var(--primary); color: white;
+}
+.filter-tab i { font-size: 10px; }
+
+/* ── Product Grid ── */
+.product-grid {
+    display: grid; grid-template-columns: 1fr; gap: 8px;
+}
+@media (min-width: 640px) {
+    .product-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 900px) {
+    .product-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── Product Card ── */
+.product-card {
+    background: var(--surface); border: 2px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+    cursor: pointer; transition: all 0.2s ease;
+    position: relative; display: flex; align-items: center; gap: 12px;
+}
+.product-card:hover {
+    border-color: #39c5df; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.product-card.selected {
+    border-color: var(--primary); background: var(--primary-50);
+    box-shadow: 0 0 0 3px rgba(99,83,216,0.1);
+}
+
+/* Product selector circle */
+.product-selector {
+    width: 20px; height: 20px; border: 2px solid var(--border);
+    border-radius: 999px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s ease;
+}
+.product-selector::after {
+    content: ''; width: 8px; height: 8px;
+    border-radius: 999px; background: transparent;
+    transition: all 0.2s ease;
+}
+.product-card.selected .product-selector {
+    border-color: var(--primary);
+}
+.product-card.selected .product-selector::after {
+    background: var(--primary);
+}
+
+.product-detail { flex: 1; min-width: 0; }
+.product-name {
+    font-size: 13.5px; font-weight: 600; color: var(--text);
+    margin-bottom: 4px; line-height: 1.3;
+}
+.product-meta {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.product-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 7px; border-radius: 999px;
+    background: var(--bg); font-size: 10.5px;
+    font-weight: 500; color: var(--text-secondary);
+}
+
+.product-pricing { flex-shrink: 0; text-align: right; }
+.product-price { font-size: 15px; font-weight: 700; color: var(--primary); white-space: nowrap; }
+.product-quota { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* ── Placeholder ── */
+.kuota-empty {
+    text-align: center; padding: 48px 20px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px;
+}
+.kuota-empty-icon {
+    width: 72px; height: 72px; border-radius: 999px;
+    background: var(--bg); display: flex;
+    align-items: center; justify-content: center;
+    margin: 0 auto 16px; font-size: 28px; color: var(--text-muted);
+}
+.kuota-empty-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.kuota-empty-text { font-size: 13px; color: var(--text-muted); }
+
+/* ── Sticky Summary ── */
+.sticky-summary {
+    position: fixed; bottom: 0; right: 0;
+    left: var(--sidebar-w);
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 12px 24px; z-index: 35;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.06);
+    transform: translateY(100%);
+    transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+}
+.sticky-summary.show { transform: translateY(0); }
+.sticky-summary.expanded { left: 0; }
+.summary-inner {
+    max-width: 960px; margin: 0 auto;
+    display: flex; align-items: center; gap: 16px;
+}
+.summary-info { flex: 1; min-width: 0; }
+.summary-label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; font-weight: 500; }
+.summary-product {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.summary-price-section { text-align: right; flex-shrink: 0; }
+.summary-price-label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; font-weight: 500; }
+.summary-price { font-size: 18px; font-weight: 700; color: var(--primary); }
+.btn-clear {
+    width: 36px; height: 36px; border-radius: 999px;
+    background: var(--bg); border: none;
+    color: var(--text-muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.2s ease;
+}
+.btn-clear:hover { background: #fee2e2; color: var(--error); }
+.btn-buy {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 10px 24px; border: none;
+    border-radius: 10px; font-size: 14px; font-weight: 600;
+    color: white; background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    cursor: pointer; transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(99,83,216,0.25);
+    min-width: 140px; white-space: nowrap;
+}
+.btn-buy:hover {
+    box-shadow: 0 4px 16px rgba(99,83,216,0.35);
+    transform: translateY(-1px);
+}
+.btn-loading {
+    position: relative; color: transparent !important; pointer-events: none;
+}
+.btn-loading::after {
+    content: ''; position: absolute;
+    width: 18px; height: 18px;
+    border: 2px solid #ffffff; border-right-color: transparent;
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Load More ── */
+.btn-outline {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 10px 24px; border: 2px solid var(--border);
+    border-radius: 10px; background: transparent;
+    color: var(--text-secondary); font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
+}
+.btn-outline:hover {
+    border-color: var(--primary); color: var(--primary);
+    background: var(--primary-50);
+}
+
+/* ── Toast ── */
+.toast-notification {
+    position: fixed; top: 80px; right: 20px; z-index: 9999;
+    min-width: 280px; max-width: 400px;
+    padding: 1rem 1.25rem; border-radius: 12px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    animation: slideInToast 0.4s ease;
+    font-size: 14px;
+}
+.toast-notification.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+.toast-notification.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+.toast-notification.info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+@keyframes slideInToast {
+    from { opacity: 0; transform: translateX(40px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .sticky-summary { left: 0 !important; padding: 12px 16px; }
+    .summary-inner { flex-wrap: wrap; }
+    .summary-info { flex: 1; }
+    .summary-price-section { display: none; }
+    .btn-buy { flex: 1; }
+    .summary-inner .btn-clear { order: -1; }
+    .footer { display: none; }
+}
+</style>
+
+<!-- ═══════════════════════════════════════════
+     KUOTA PAGE - Content
+     ═══════════════════════════════════════════ -->
+
+<form method="POST" action="" id="formKuota">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+    <input type="hidden" name="produk_id" id="produkId" value="">
+
+    <!-- Phone Input -->
+    <div class="phone-card">
+        <div class="phone-card-title">
+            <i class="fas fa-phone-alt"></i> Nomor Handphone
         </div>
-        <div class="sidebar-brand">
-            <span>PPOB</span> Express
+        <div class="phone-group">
+            <i class="fas fa-mobile-alt input-icon"></i>
+            <input type="tel" class="phone-field" id="noHp" name="no_hp"
+                   placeholder="Contoh: 08123456789" maxlength="15" required
+                   oninput="this.value = this.value.replace(/[^0-9]/g, ''); detectProvider();">
+        </div>
+        <div class="provider-hint" id="providerHint">
+            <span id="providerText">Masukkan nomor untuk mendeteksi provider</span>
         </div>
     </div>
 
-    <nav class="sidebar-nav">
-        <a href="index.php" class="nav-item">
-            <i class="fas fa-home"></i>
-            <span>Dashboard</span>
-        </a>
-        <a href="pulsa.php" class="nav-item">
-            <i class="fas fa-mobile-alt"></i>
-            <span>Isi Pulsa</span>
-        </a>
-        <a href="kuota.php" class="nav-item active">
-            <i class="fas fa-wifi"></i>
-            <span>Paket Data</span>
-        </a>
-        <a href="listrik.php" class="nav-item">
-            <i class="fas fa-bolt"></i>
-            <span>Token Listrik</span>
-        </a>
-        <a href="transfer.php" class="nav-item">
-            <i class="fas fa-exchange-alt"></i>
-            <span>Transfer</span>
-        </a>
-        <a href="deposit.php" class="nav-item">
-            <i class="fas fa-plus-circle"></i>
-            <span>Deposit</span>
-        </a>
-        <a href="riwayat.php" class="nav-item">
-            <i class="fas fa-history"></i>
-            <span>Riwayat</span>
-        </a>
-
-        <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
-        <div class="nav-divider"></div>
-        <div class="nav-label">Admin Menu</div>
-        <a href="kelola_user.php" class="nav-item">
-            <i class="fas fa-users"></i>
-            <span>Kelola User</span>
-        </a>
-        <a href="kelola_produk.php" class="nav-item">
-            <i class="fas fa-box"></i>
-            <span>Kelola Produk</span>
-        </a>
-        <a href="laporan.php" class="nav-item">
-            <i class="fas fa-chart-bar"></i>
-            <span>Laporan</span>
-        </a>
-        <?php endif; ?>
-    </nav>
-
-    <div class="sidebar-footer">
-        <a href="logout.php" class="nav-item" style="color: #ef4444;">
-            <i class="fas fa-sign-out-alt"></i>
-            <span>Logout</span>
-        </a>
+    <!-- Product List -->
+    <?php if (empty($produkByProvider)): ?>
+    <div class="kuota-empty">
+        <div class="kuota-empty-icon"><i class="fas fa-wifi"></i></div>
+        <div class="kuota-empty-title">Tidak Ada Paket Tersedia</div>
+        <div class="kuota-empty-text">Paket data belum tersedia saat ini</div>
     </div>
-</aside>
+    <?php else: ?>
 
-<!-- Overlay -->
-<div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+    <!-- Placeholder (before phone entered) -->
+    <div id="productPlaceholder" class="kuota-empty">
+        <div class="kuota-empty-icon"><i class="fas fa-mobile-alt"></i></div>
+        <div class="kuota-empty-title">Masukkan Nomor HP</div>
+        <div class="kuota-empty-text">Paket data akan muncul setelah nomor diisi</div>
+    </div>
 
-<!-- Main Wrapper -->
-<div class="main-wrapper" id="mainWrapper">
-    
-    <!-- Top Header -->
-    <header class="top-header">
-        <div class="header-left">
-            <button class="toggle-btn" id="toggleBtn" onclick="toggleSidebar()">
-                <i class="fas fa-bars"></i>
+    <!-- Provider Sections -->
+    <?php foreach ($produkByProvider as $provider => $produkList):
+        $providerLower = strtolower($provider);
+        $providerClass = in_array($providerLower, ['telkomsel','indosat','xl','tri','axis','smartfren']) ? $providerLower : 'telkomsel';
+        $totalProduk = count($produkList);
+    ?>
+    <div class="provider-section" data-provider="<?= strtolower($provider) ?>" style="display: none;">
+        <div class="provider-header">
+            <div class="provider-icon <?= $providerClass ?>">
+                <?= strtoupper(substr($provider, 0, 1)) ?>
+            </div>
+            <div class="provider-info">
+                <div class="provider-name"><?= htmlspecialchars($provider) ?></div>
+                <div class="provider-count"><?= $totalProduk ?> paket tersedia</div>
+            </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="filter-tabs" id="filterTabs-<?= strtolower($provider) ?>">
+            <button type="button" class="filter-tab active" data-filter="all"
+                    onclick="filterProducts('<?= strtolower($provider) ?>', 'all', this)">Semua</button>
+            <?php foreach ($daftarKategori as $key => $cat): ?>
+            <button type="button" class="filter-tab" data-filter="<?= $key ?>"
+                    onclick="filterProducts('<?= strtolower($provider) ?>', '<?= $key ?>', this)">
+                <i class="fas <?= $cat['icon'] ?>"></i> <?= $cat['label'] ?>
             </button>
-            <div class="user-info">
-                <div class="user-avatar">
-                    <i class="fas fa-user"></i>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- Product Grid -->
+        <div class="product-grid" id="products-<?= strtolower($provider) ?>">
+            <?php
+            $displayCount = min(20, $totalProduk);
+            for ($i = 0; $i < $displayCount; $i++):
+                $p = $produkList[$i];
+                $kategori = getKategoriKuota($p['produk_nama']);
+                $kat = $daftarKategori[$kategori] ?? $daftarKategori['lainnya'];
+            ?>
+            <div class="product-card"
+                 data-id="<?= $p['id'] ?>"
+                 data-name="<?= htmlspecialchars($p['produk_nama'], ENT_QUOTES) ?>"
+                 data-price="<?= $p['harga_jual'] ?>"
+                 data-kategori="<?= $kategori ?>"
+                 onclick="selectProduct(this)">
+                <div class="product-selector"></div>
+                <div class="product-detail">
+                    <div class="product-name"><?= htmlspecialchars($p['produk_nama']) ?></div>
+                    <div class="product-meta">
+                        <span class="product-badge"><i class="fas fa-signal"></i> 4G/LTE</span>
+                        <span class="product-badge"><i class="fas <?= $kat['icon'] ?>"></i> <?= $kat['label'] ?></span>
+                    </div>
                 </div>
-                <div class="user-details">
-                    <div class="user-name"><?= htmlspecialchars($_SESSION['nama_lengkap']) ?></div>
-                    <div class="user-role"><?= ucfirst($_SESSION['role']) ?></div>
+                <div class="product-pricing">
+                    <div class="product-price"><?= rupiah($p['harga_jual']) ?></div>
+                    <div class="product-quota"><?= formatBytes($p['nominal']) ?></div>
                 </div>
             </div>
-        </div>
-        <div class="saldo-box">
-            <div class="saldo-label">Saldo</div>
-            <div class="saldo-value"><?= rupiah($_SESSION['saldo']) ?></div>
-        </div>
-    </header>
-
-    <!-- Page Content -->
-    <main class="page-content">
-        
-        <!-- Page Title -->
-        <div class="page-title">
-            <h1>Paket Data Internet</h1>
-            <p>Pilih paket data sesuai kebutuhan Anda</p>
+            <?php endfor; ?>
         </div>
 
-        <!-- Alert -->
-        <?php if ($alert): ?>
-        <div class="alert alert-<?= $alert['type'] == 'success' ? 'success' : 'error' ?>">
-            <i class="fas fa-<?= $alert['type'] == 'success' ? 'check-circle' : 'exclamation-circle' ?>"></i>
-            <span class="alert-message"><?= $alert['message'] ?></span>
+        <?php if ($totalProduk > 20): ?>
+        <div class="text-center" style="margin-top:16px;">
+            <button type="button" class="btn-outline"
+                    id="loadMore-<?= strtolower($provider) ?>"
+                    onclick="loadMoreProducts('<?= strtolower($provider) ?>', <?= $totalProduk ?>)">
+                <i class="fas fa-plus"></i> Tampilkan lainnya (<?= $totalProduk - 20 ?> lagi)
+            </button>
         </div>
         <?php endif; ?>
 
-        <!-- Form -->
-        <form method="POST" action="" id="formKuota">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-            <input type="hidden" name="id_produk" id="idProduk" value="">
+        <!-- Store product data for JS -->
+        <script>
+            window.providerProducts = window.providerProducts || {};
+            window.providerProducts['<?= strtolower($provider) ?>'] = <?= json_encode(array_map(function($p) {
+                return [
+                    'id' => $p['id'],
+                    'name' => htmlspecialchars($p['produk_nama'], ENT_QUOTES),
+                    'price' => $p['harga_jual'],
+                    'nominal' => $p['nominal'],
+                    'kategori' => getKategoriKuota($p['produk_nama'])
+                ];
+            }, $produkList)) ?>;
+        </script>
+    </div>
+    <?php endforeach; ?>
+    <?php endif; ?>
 
-            <!-- Input Nomor HP -->
-            <div class="card">
-                <div class="card-body">
-                    <div class="card-title">
-                        <i class="fas fa-phone-alt" style="color: #2563eb; margin-right: 8px;"></i>
-                        Nomor Handphone
-                    </div>
-                    <div class="input-group">
-                        <i class="fas fa-mobile-alt input-icon"></i>
-                        <input type="tel" 
-                               name="no_hp" 
-                               id="noHp"
-                               class="input-field" 
-                               placeholder="Contoh: 08123456789"
-                               maxlength="15"
-                               required
-                               oninput="this.value = this.value.replace(/[^0-9]/g, ''); detectProvider();">
-                    </div>
-                    <div class="input-hint" id="providerHint">
-                        <i class="fas fa-info-circle"></i>
-                        <span id="providerText">Masukkan nomor untuk mendeteksi provider</span>
-                    </div>
-                </div>
+    <!-- Sticky Summary -->
+    <div class="sticky-summary" id="stickySummary">
+        <div class="summary-inner">
+            <button type="button" class="btn-clear" title="Batal" onclick="resetSelection()">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="summary-info">
+                <div class="summary-label">Produk dipilih</div>
+                <div class="summary-product" id="summaryProduct">-</div>
             </div>
-
-            <!-- Daftar Paket Data -->
-            <?php if (empty($produkByProvider)): ?>
-            <div class="card">
-                <div class="empty-state">
-                    <div class="empty-icon">
-                        <i class="fas fa-wifi"></i>
-                    </div>
-                    <div class="empty-title">Tidak Ada Paket Tersedia</div>
-                    <div class="empty-text">Paket data belum tersedia saat ini</div>
-                </div>
+            <div class="summary-price-section">
+                <div class="summary-price-label">Total</div>
+                <div class="summary-price" id="summaryPrice">Rp 0</div>
             </div>
-            <?php else: ?>
-            
-            <?php foreach ($produkByProvider as $provider => $listProduk): 
-                $providerLower = strtolower($provider);
-                $providerClass = in_array($providerLower, ['telkomsel', 'indosat', 'xl', 'tri', 'axis', 'smartfren']) 
-                    ? $providerLower : 'telkomsel';
-            ?>
-            <div class="card provider-section" data-provider="<?= strtolower($provider) ?>">
-                <div class="card-body">
-                    <div class="provider-header">
-                        <div class="provider-icon <?= $providerClass ?>">
-                            <?= strtoupper(substr($provider, 0, 1)) ?>
-                        </div>
-                        <div>
-                            <div class="provider-name"><?= htmlspecialchars($provider) ?></div>
-                            <div class="provider-subtitle"><?= count($listProduk) ?> paket tersedia</div>
-                        </div>
-                    </div>
+            <button type="submit" class="btn-buy" id="btnSubmit">
+                <i class="fas fa-shopping-cart"></i>
+                <span>Beli Paket</span>
+            </button>
+        </div>
+    </div>
+</form>
 
-                    <div class="product-grid">
-                        <?php foreach ($listProduk as $p): ?>
-                        <div class="product-card" 
-                             data-id="<?= $p['id'] ?>"
-                             data-name="<?= htmlspecialchars($p['nama_produk'], ENT_QUOTES) ?>"
-                             data-price="<?= $p['harga_jual'] ?>"
-                             onclick="selectProduct(this)">
-                            
-                            <div class="product-content">
-                                <div class="product-info">
-                                    <div class="product-name"><?= htmlspecialchars($p['nama_produk']) ?></div>
-                                    <div class="product-meta">
-                                        <span class="product-badge">
-                                            <i class="fas fa-calendar"></i>
-                                            30 Hari
-                                        </span>
-                                        <span class="product-badge">
-                                            <i class="fas fa-signal"></i>
-                                            4G/LTE
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="product-price-section">
-                                    <div class="product-price"><?= rupiah($p['harga_jual']) ?></div>
-                                    <div class="product-quota"><?= formatBytes($p['nominal']) ?></div>
-                                </div>
-                            </div>
-                            
-                            <div class="product-radio">
-                                <div class="product-radio-dot"></div>
-                            </div>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            </div>
-            <?php endforeach; ?>
-            
-            <?php endif; ?>
-
-            <!-- Sticky Summary -->
-            <div class="sticky-summary" id="stickySummary">
-                <div class="summary-content">
-                    <div class="summary-info">
-                        <div>
-                            <div class="summary-label">Produk dipilih</div>
-                            <div class="summary-product" id="summaryProduct">-</div>
-                        </div>
-                        <div class="summary-price-section">
-                            <div class="summary-price" id="summaryPrice">Rp 0</div>
-                        </div>
-                    </div>
-                    <div class="summary-actions">
-                        <button type="button" class="btn btn-secondary" onclick="resetSelection()">
-                            <i class="fas fa-times"></i>
-                            <span class="btn-text-full">Batal</span>
-                        </button>
-                        <button type="submit" class="btn btn-primary" id="btnSubmit">
-                            <i class="fas fa-wifi"></i>
-                            <span>Beli Paket</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </form>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <div class="footer-content">
-                <div class="footer-text">
-                    &copy; <?= date('Y') ?> PPOB Express. All rights reserved.
-                </div>
-                <div class="footer-links">
-                    <a href="#" class="footer-link">Kebijakan Privasi</a>
-                    <a href="#" class="footer-link">Syarat & Ketentuan</a>
-                </div>
-            </div>
-        </footer>
-    </main>
-</div>
-
+<!-- ═══════════════════════════════════════════
+     KUOTA PAGE - JavaScript
+     ═══════════════════════════════════════════ -->
 <script>
-// ==================== SIDEBAR ====================
-const sidebar = document.getElementById('sidebar');
-const overlay = document.getElementById('overlay');
-const mainWrapper = document.getElementById('mainWrapper');
+// ══════════ REFERENCES ══════════
 const stickySummary = document.getElementById('stickySummary');
 
-function isMobile() {
-    return window.innerWidth <= 768;
-}
+// ══════════ PROVIDER DETECTION ══════════
+const providerPrefixes = {
+    'Telkomsel': ['0811','0812','0813','0821','0822','0823','0851','0852','0853'],
+    'Indosat':   ['0814','0815','0816','0855','0856','0857','0858'],
+    'XL':        ['0817','0818','0819','0859','0877','0878'],
+    'Tri':       ['0895','0896','0897','0898','0899'],
+    'Axis':      ['0831','0832','0833','0838'],
+    'Smartfren': ['0881','0882','0883','0884','0885','0886','0887','0888','0889']
+};
 
-function toggleSidebar() {
-    if (isMobile()) {
-        sidebar.classList.toggle('open');
-        overlay.classList.toggle('show');
+function detectProvider() {
+    const noHp = document.getElementById('noHp').value;
+    const text = document.getElementById('providerText');
+    const hint = document.getElementById('providerHint');
+
+    if (noHp.length < 4) {
+        text.innerHTML = 'Masukkan nomor untuk mendeteksi provider';
+        text.classList.remove('provider-detected');
+
+        // Hide provider sections, show placeholder
+        document.querySelectorAll('.provider-section').forEach(s => s.style.display = 'none');
+        document.getElementById('productPlaceholder').style.display = 'block';
+        return;
+    }
+
+    const prefix = noHp.substring(0, 4);
+    let detected = null;
+
+    for (const [provider, prefixes] of Object.entries(providerPrefixes)) {
+        if (prefixes.some(p => prefix.startsWith(p))) {
+            detected = provider;
+            break;
+        }
+    }
+
+    if (detected) {
+        text.innerHTML = `<i class="fas fa-check-circle" style="color:var(--success)"></i> <span class="provider-detected">${detected}</span> terdeteksi`;
+
+        // Show detected provider section, hide others, hide placeholder
+        document.getElementById('productPlaceholder').style.display = 'none';
+        document.querySelectorAll('.provider-section').forEach(s => s.style.display = 'none');
+        const detectedSection = document.querySelector(`.provider-section[data-provider="${detected.toLowerCase()}"]`);
+        if (detectedSection) {
+            detectedSection.style.display = 'block';
+
+            // Reset filter to "all"
+            const filterContainer = document.getElementById('filterTabs-' + detected.toLowerCase());
+            if (filterContainer) {
+                filterContainer.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                filterContainer.querySelector('.filter-tab[data-filter="all"]')?.classList.add('active');
+            }
+        }
     } else {
-        sidebar.classList.toggle('closed');
-        mainWrapper.classList.toggle('expanded');
-        stickySummary.classList.toggle('expanded');
-        
-        // Save state
-        const isExpanded = mainWrapper.classList.contains('expanded');
-        localStorage.setItem('sidebarClosed', isExpanded ? 'true' : 'false');
+        text.innerHTML = '<i class="fas fa-info-circle"></i> Provider tidak dikenali';
+        text.classList.remove('provider-detected');
+
+        // Show all provider sections, hide placeholder
+        document.getElementById('productPlaceholder').style.display = 'none';
+        document.querySelectorAll('.provider-section').forEach(s => s.style.display = 'block');
     }
 }
 
-function initSidebar() {
-    if (isMobile()) {
-        sidebar.classList.remove('open', 'closed');
-        mainWrapper.classList.remove('expanded');
-        stickySummary.classList.remove('expanded');
-        overlay.classList.remove('show');
-    } else {
-        const savedState = localStorage.getItem('sidebarClosed');
-        if (savedState === 'true') {
-            sidebar.classList.add('closed');
-            mainWrapper.classList.add('expanded');
-            stickySummary.classList.add('expanded');
-        } else {
-            sidebar.classList.remove('closed');
-            mainWrapper.classList.remove('expanded');
-            stickySummary.classList.remove('expanded');
-        }
-    }
-}
-
-// Init on load
-document.addEventListener('DOMContentLoaded', initSidebar);
-
-// Re-init on resize
-let resizeTimer;
-window.addEventListener('resize', function() {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(initSidebar, 150);
-});
-
-// Close sidebar when clicking nav item on mobile
-document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', function(e) {
-        if (isMobile() && !e.target.closest('.sidebar-footer')) {
-            sidebar.classList.remove('open');
-            overlay.classList.remove('show');
-        }
-    });
-});
-
-// ==================== PRODUCT SELECTION ====================
+// ══════════ PRODUCT SELECTION ══════════
 let selectedProduct = null;
+window.activeFilters = {};
 
 function selectProduct(card) {
-    // Remove previous selection
-    document.querySelectorAll('.product-card').forEach(c => {
-        c.classList.remove('selected');
-    });
-    
-    // Add selection to clicked card
+    // Toggle selection
+    if (card.classList.contains('selected')) {
+        resetSelection();
+        return;
+    }
+
+    // Remove previous
+    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
+
+    // Select new
     card.classList.add('selected');
     selectedProduct = {
         id: card.dataset.id,
         name: card.dataset.name,
         price: parseInt(card.dataset.price)
     };
-    
+
     // Update form
-    document.getElementById('idProduk').value = selectedProduct.id;
-    
+    document.getElementById('produkId').value = selectedProduct.id;
+
     // Update summary
     document.getElementById('summaryProduct').textContent = selectedProduct.name;
     document.getElementById('summaryPrice').textContent = formatRupiah(selectedProduct.price);
-    
-    // Show sticky summary
+
+    // Show summary
     stickySummary.classList.add('show');
-    
-    // Scroll to summary on mobile
+
+    // Scroll on mobile
     if (isMobile()) {
         setTimeout(() => {
             stickySummary.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -1256,96 +622,212 @@ function selectProduct(card) {
 }
 
 function resetSelection() {
-    document.querySelectorAll('.product-card').forEach(c => {
-        c.classList.remove('selected');
-    });
-    
+    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
     selectedProduct = null;
-    document.getElementById('idProduk').value = '';
+    document.getElementById('produkId').value = '';
     document.getElementById('summaryProduct').textContent = '-';
     document.getElementById('summaryPrice').textContent = 'Rp 0';
     stickySummary.classList.remove('show');
 }
 
-function formatRupiah(num) {
-    return 'Rp ' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-}
+// ══════════ FILTER ══════════
+function filterProducts(provider, filter, btn) {
+    // Update active tab
+    const container = document.getElementById('filterTabs-' + provider);
+    container.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
 
-// ==================== PROVIDER DETECTION ====================
-const providerPrefixes = {
-    'Telkomsel': ['0811', '0812', '0813', '0821', '0822', '0823', '0851', '0852', '0853'],
-    'Indosat': ['0814', '0815', '0816', '0855', '0856', '0857', '0858'],
-    'XL': ['0817', '0818', '0819', '0859', '0877', '0878'],
-    'Tri': ['0895', '0896', '0897', '0898', '0899'],
-    'Axis': ['0831', '0832', '0833', '0838'],
-    'Smartfren': ['0881', '0882', '0883', '0884', '0885', '0886', '0887', '0888', '0889']
-};
+    // Filter products
+    const grid = document.getElementById('products-' + provider);
+    const cards = grid.querySelectorAll('.product-card');
+    let visibleCount = 0;
 
-function detectProvider() {
-    const noHp = document.getElementById('noHp').value;
-    const hint = document.getElementById('providerHint');
-    const text = document.getElementById('providerText');
-    
-    if (noHp.length < 4) {
-        text.innerHTML = 'Masukkan nomor untuk mendeteksi provider';
-        text.classList.remove('provider-detected');
-        return;
-    }
-    
-    const prefix = noHp.substring(0, 4);
-    let detectedProvider = null;
-    
-    for (const [provider, prefixes] of Object.entries(providerPrefixes)) {
-        if (prefixes.some(p => prefix.startsWith(p))) {
-            detectedProvider = provider;
-            break;
+    cards.forEach(card => {
+        if (filter === 'all') {
+            card.style.display = '';
+            visibleCount++;
+        } else if (card.dataset.kategori === filter) {
+            card.style.display = '';
+            visibleCount++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+
+    window.activeFilters[provider] = filter;
+
+    // Update load more button visibility
+    const loadMoreBtn = document.getElementById('loadMore-' + provider);
+    if (loadMoreBtn) {
+        const totalProducts = window.providerProducts?.[provider]?.length || 0;
+        const currentVisible = grid.querySelectorAll('.product-card:not([style*="display: none"])').length;
+        if (currentVisible >= totalProducts || visibleCount === 0) {
+            loadMoreBtn.style.display = 'none';
+        } else {
+            loadMoreBtn.style.display = '';
         }
     }
-    
-    if (detectedProvider) {
-        text.innerHTML = `<span class="provider-detected">${detectedProvider}</span> terdeteksi. Pilih paket yang sesuai.`;
-    } else {
-        text.innerHTML = 'Provider tidak dikenali';
-        text.classList.remove('provider-detected');
+}
+
+// ══════════ LOAD MORE ══════════
+const kategoriLabels = {
+    'harian':    { label: 'Harian',    icon: 'fa-sun' },
+    'mingguan':  { label: 'Mingguan',  icon: 'fa-calendar-week' },
+    'bulanan':   { label: 'Bulanan',   icon: 'fa-calendar-alt' },
+    'gaming':    { label: 'Gaming',    icon: 'fa-gamepad' },
+    'streaming': { label: 'Streaming', icon: 'fa-play-circle' },
+    'sosmed':    { label: 'Sosmed',    icon: 'fa-share-alt' },
+    'malam':     { label: 'Malam',     icon: 'fa-moon' },
+    'lainnya':   { label: 'Lainnya',   icon: 'fa-ellipsis-h' }
+};
+
+function loadMoreProducts(provider, total) {
+    const grid = document.getElementById('products-' + provider);
+    const btn = document.getElementById('loadMore-' + provider);
+    const products = window.providerProducts[provider];
+
+    if (!products || !grid) return;
+
+    const currentCount = grid.querySelectorAll('.product-card').length;
+    const nextCount = Math.min(currentCount + 20, total);
+
+    const activeFilter = window.activeFilters[provider] || 'all';
+    const filterContainer = document.getElementById('filterTabs-' + provider);
+
+    let visibleAdded = 0;
+
+    for (let i = currentCount; i < nextCount; i++) {
+        const p = products[i];
+        const card = document.createElement('div');
+        card.className = 'product-card';
+        card.dataset.id = p.id;
+        card.dataset.name = p.name;
+        card.dataset.price = p.price;
+        card.dataset.kategori = p.kategori;
+        card.onclick = function() { selectProduct(this); };
+
+        // Hide if not matching filter
+        if (activeFilter !== 'all' && p.kategori !== activeFilter) {
+            card.style.display = 'none';
+        } else {
+            visibleAdded++;
+        }
+
+        const kat = kategoriLabels[p.kategori] || kategoriLabels['lainnya'];
+
+        card.innerHTML = `
+            <div class="product-selector"></div>
+            <div class="product-detail">
+                <div class="product-name">${p.name}</div>
+                <div class="product-meta">
+                    <span class="product-badge"><i class="fas fa-signal"></i> 4G/LTE</span>
+                    <span class="product-badge"><i class="fas ${kat.icon}"></i> ${kat.label}</span>
+                </div>
+            </div>
+            <div class="product-pricing">
+                <div class="product-price">${formatRupiah(p.price)}</div>
+                <div class="product-quota">${formatBytesJS(p.nominal)}</div>
+            </div>`;
+        grid.appendChild(card);
+    }
+
+    if (btn) {
+        if (nextCount >= total) {
+            btn.style.display = 'none';
+        } else {
+            btn.innerHTML = `<i class="fas fa-plus"></i> Tampilkan lainnya (${total - nextCount} lagi)`;
+        }
     }
 }
 
-// ==================== FORM SUBMISSION ====================
+// ══════════ UTILITIES ══════════
+function formatRupiah(num) {
+    return 'Rp ' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function formatBytesJS(bytes, precision = 2) {
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    bytes = Math.max(bytes, 0);
+    let pow = Math.floor(Math.log(bytes || 1) / Math.log(1024));
+    pow = Math.min(pow, units.length - 1);
+    return (bytes / Math.pow(1024, pow)).toFixed(precision) + ' ' + units[pow];
+}
+
+function isMobile() { return window.innerWidth <= 768; }
+
+function showToast(message, type = 'info') {
+    const existing = document.getElementById('toastNotif');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'toastNotif';
+    toast.className = 'toast-notification ' + type;
+    toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i><span>${message}</span>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
+// ══════════ FORM SUBMISSION ══════════
 document.getElementById('formKuota').addEventListener('submit', function(e) {
     const noHp = document.getElementById('noHp').value;
-    const idProduk = document.getElementById('idProduk').value;
-    
+    const produkId = document.getElementById('produkId').value;
+
     if (!noHp || noHp.length < 10) {
         e.preventDefault();
-        alert('Masukkan nomor HP yang valid (minimal 10 digit)');
+        showToast('Masukkan nomor HP yang valid (minimal 10 digit)', 'error');
         return;
     }
-    
-    if (!idProduk) {
+
+    if (!produkId) {
         e.preventDefault();
-        alert('Pilih paket data terlebih dahulu');
+        showToast('Pilih paket data terlebih dahulu', 'error');
         return;
     }
-    
+
     // Show loading
     const btn = document.getElementById('btnSubmit');
     btn.classList.add('btn-loading');
     btn.disabled = true;
 });
 
-// ==================== KEYBOARD SHORTCUTS ====================
+// ══════════ SIDEBAR SYNC ══════════
+// Sync sticky summary left position with sidebar state
+function syncSummaryPosition() {
+    if (!isMobile()) {
+        const mainWrapper = document.getElementById('mainWrapper');
+        if (mainWrapper && mainWrapper.classList.contains('sidebar-hidden')) {
+            stickySummary.classList.add('expanded');
+        } else {
+            stickySummary.classList.remove('expanded');
+        }
+    }
+}
+
+// Override sidebar toggle to also sync summary
+const origToggle = window.toggleSidebar;
+if (origToggle) {
+    window.toggleSidebar = function() {
+        origToggle();
+        setTimeout(syncSummaryPosition, 350);
+    };
+}
+
+// ══════════ KEYBOARD SHORTCUT ══════════
 document.addEventListener('keydown', function(e) {
-    // Escape to close sidebar on mobile or reset selection
     if (e.key === 'Escape') {
-        if (isMobile() && sidebar.classList.contains('open')) {
-            toggleSidebar();
-        } else if (selectedProduct) {
+        if (selectedProduct) {
             resetSelection();
         }
     }
 });
+
+// ══════════ INIT ══════════
+document.addEventListener('DOMContentLoaded', function() {
+    syncSummaryPosition();
+});
 </script>
 
-</body>
-</html>
-<?php $conn->close(); ?>
+<?php
+include 'layout_footer.php';
+$conn->close();
+?>

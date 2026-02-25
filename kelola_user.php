@@ -9,7 +9,14 @@ if ($_SESSION['role'] != 'admin') {
 }
 
 $conn = koneksi();
-$id_user = $_SESSION['id_user'];
+$id_user = $_SESSION['user_id'];
+
+// ═══ Layout Variables ═══
+$pageTitle   = 'Kelola User';
+$pageIcon    = 'fas fa-users';
+$pageDesc    = 'Kelola data user dan saldo';
+$currentPage = 'kelola_user';
+$additionalHeadScripts = '';
 
 // Fungsi untuk mendapatkan semua user
 function getAllUsers($conn, $search = '', $role = '', $status = '') {
@@ -294,1081 +301,1164 @@ $users = getAllUsers($conn, $search, $filter_role, $filter_status);
 
 $alert = getAlert();
 $_SESSION['saldo'] = getSaldo($id_user);
+
+// Include layout
+include 'layout.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kelola User - PPOB Express</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* ── Layout ── */
-        body {
-            display: flex;
-            min-height: 100vh;
-            background: #f8fafc;
-        }
-
-        /* ── Sidebar ── */
-        #sidebar {
-            position: fixed;
-            top: 0; left: 0;
-            width: 256px;
-            height: 100vh;
-            background: white;
-            border-right: 1px solid #e5e7eb;
-            z-index: 40;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            /* Transisi smooth untuk collapse */
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                        width   0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            transform: translateX(0);
-        }
-
-        /* State: sidebar tersembunyi (dipakai di mobile DAN desktop saat di-toggle) */
-        #sidebar.sidebar-hidden {
-            transform: translateX(-100%);
-        }
-
-        /* ── Main Content ── */
-        #main-content {
-            flex: 1;
-            min-width: 0;
-            margin-left: 256px; /* sama dengan lebar sidebar */
-            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* Saat sidebar hidden → main pakai full width */
-        #main-content.sidebar-hidden {
-            margin-left: 0;
-        }
-
-        /* ── Mobile: sidebar default hidden ── */
-        @media (max-width: 767px) {
-            #sidebar {
-                transform: translateX(-100%);
-            }
-            #sidebar.sidebar-open {
-                transform: translateX(0);
-            }
-            #main-content {
-                margin-left: 0 !important;
-            }
-        }
-
-        /* ── Overlay (mobile only) ── */
-        #overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.35);
-            z-index: 30;
-            backdrop-filter: blur(2px);
-        }
-        #overlay.show {
-            display: block;
-        }
-
-        /* ── Sticky Header ── */
-        .sticky-header {
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            background: white;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-        }
-
-        /* ── Menu Items ── */
-        .menu-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.625rem 1rem;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
-            color: #4b5563;
-            text-decoration: none;
-            transition: all 0.18s ease;
-            white-space: nowrap;
-            overflow: hidden;
-        }
-        .menu-item:hover {
-            background: #f0f4ff;
-            color: #2563be;
-        }
-        .menu-item.active {
-            background: #eff6ff;
-            color: #2563be;
-            border-left: 3px solid #2563be;
-            font-weight: 600;
-        }
-        .menu-item i {
-            width: 1.25rem;
-            text-align: center;
-            flex-shrink: 0;
-        }
-
-        /* ── Badge ── */
-        .badge {
-            display: inline-block;
-            padding: 0.2rem 0.55rem;
-            border-radius: 999px;
-            font-size: 0.68rem;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-        .badge-blue   { background:#dbeafe; color:#1d4ed8; }
-        .badge-green  { background:#dcfce7; color:#15803d; }
-        .badge-yellow { background:#fef9c3; color:#a16207; }
-        .badge-purple { background:#f3e8ff; color:#7e22ce; }
-        .badge-red    { background:#fee2e2; color:#b91c1c; }
-
-        .status-success { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
-        .status-pending { background:#fef9c3; color:#a16207; border:1px solid #fde047; }
-        .status-failed  { background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; }
-
-        /* ── Stat Card ── */
-        .stat-card {
-            border-radius: 0.75rem;
-            border: 1px solid #e8ecf0;
-            background: white;
-            padding: 1rem 1.25rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-
-        /* ── Card ── */
-        .card {
-            background: white;
-            border-radius: 0.75rem;
-            border: 1px solid #e8ecf0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-        }
-
-        /* ── Table ── */
-        .table-header-row th {
-            background: #f8fafc;
-            color: #374151;
-            font-size: 0.72rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 0.75rem 1.25rem;
-            border-bottom: 2px solid #e5e7eb;
-        }
-        .table-row td {
-            padding: 0.875rem 1.25rem;
-            font-size: 0.875rem;
-            color: #374151;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .table-row:hover td {
-            background: #f8fafc;
-        }
-        .table-row:last-child td {
-            border-bottom: none;
-        }
-
-        /* ── Toggle Button ── */
-        #toggleBtn {
-            transition: background 0.2s ease, transform 0.15s ease;
-        }
-        #toggleBtn:active { transform: scale(0.92); }
-
-        /* ── Modal ── */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-        }
-        
-        .modal-content {
-            background-color: white;
-            margin: 5% auto;
-            padding: 0;
-            border-radius: 0.75rem;
-            max-width: 500px;
-            animation: modalFadeIn 0.3s;
-        }
-        
-        @keyframes modalFadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* ── Input Field ── */
-        .input-field {
-            transition: all 0.2s ease;
-        }
-        
-        .input-field:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        /* ── Button Primary ── */
-        .btn-primary {
-            background-color: #2563eb;
-            color: white;
-            transition: all 0.2s ease;
-        }
-        
-        .btn-primary:hover {
-            background-color: #1d4ed8;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-        }
-
-        /* ── Button Danger ── */
-        .btn-danger {
-            background-color: #ef4444;
-            color: white;
-            transition: all 0.2s ease;
-        }
-        
-        .btn-danger:hover {
-            background-color: #dc2626;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-        }
-
-        /* ── Alert ── */
-        .alert {
-            animation: slideIn 0.3s ease;
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* ── Filter Icon Rotate ── */
-        .icon-rotated { transform: rotate(180deg); }
-        #filterIcon { transition: transform 0.3s ease; }
-    </style>
-</head>
-
-<body>
 
 <!-- ═══════════════════════════════════════════
-     SIDEBAR
-════════════════════════════════════════════ -->
-<aside id="sidebar">
-    <!-- Logo -->
-    <div class="p-5 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
-        <div class="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-            <i class="fas fa-wallet text-white"></i>
+     KELOLA USER - Professional Styling
+═══════════════════════════════════════════ -->
+<style>
+/* ===== VARIABLES & RESET ===== */
+:root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --primary-light: #3b82f6;
+    --primary-bg: #eff6ff;
+    --secondary: #10b981;
+    --secondary-dark: #059669;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --danger-dark: #dc2626;
+    --dark: #1f2937;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    --radius-sm: 0.375rem;
+    --radius: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* ===== TYPOGRAPHY & UTILITY CLASSES ===== */
+.text-xs { font-size: 0.75rem; line-height: 1rem; }
+.text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+.text-base { font-size: 1rem; line-height: 1.5rem; }
+.text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+.text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+.text-2xl { font-size: 1.5rem; line-height: 2rem; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+
+.text-gray-400 { color: var(--gray-400); }
+.text-gray-500 { color: var(--gray-500); }
+.text-gray-600 { color: var(--gray-600); }
+.text-gray-700 { color: var(--gray-700); }
+.text-gray-800 { color: var(--gray-800); }
+.text-gray-900 { color: var(--gray-900); }
+.text-primary { color: var(--primary); }
+.text-success { color: var(--secondary); }
+.text-warning { color: var(--warning); }
+.text-danger { color: var(--danger); }
+
+.bg-gray-50 { background-color: var(--gray-50); }
+.bg-gray-100 { background-color: var(--gray-100); }
+.bg-primary { background-color: var(--primary); }
+.bg-primary-bg { background-color: var(--primary-bg); }
+.bg-success-bg { background-color: #d1fae5; }
+.bg-warning-bg { background-color: #fed7aa; }
+.bg-danger-bg { background-color: #fee2e2; }
+
+/* ===== BADGES ===== */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1rem;
+    white-space: nowrap;
+    gap: 0.25rem;
+}
+
+.badge-sm {
+    padding: 0.125rem 0.375rem;
+    font-size: 0.625rem;
+}
+
+.badge-primary {
+    background-color: var(--primary-bg);
+    color: var(--primary-dark);
+    border: 1px solid #bfdbfe;
+}
+
+.badge-success {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.badge-warning {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+}
+
+.badge-danger {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.badge-purple {
+    background-color: #f3e8ff;
+    color: #6b21a8;
+    border: 1px solid #e9d5ff;
+}
+
+/* ===== STAT CARDS ===== */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--gray-200);
+    transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary-light);
+}
+
+.stat-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.stat-label {
+    color: var(--gray-500);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--gray-800);
+}
+
+.stat-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.stat-icon.blue { background: var(--primary-bg); color: var(--primary); }
+.stat-icon.green { background: #d1fae5; color: var(--secondary-dark); }
+.stat-icon.purple { background: #f3e8ff; color: #7e22ce; }
+
+/* ===== CARDS ===== */
+.card {
+    background: white;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--gray-200);
+    background: var(--gray-50);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.card-header h3 {
+    font-weight: 600;
+    color: var(--gray-800);
+    font-size: 1rem;
+    margin: 0;
+}
+
+.card-header p {
+    color: var(--gray-500);
+    font-size: 0.75rem;
+    margin-top: 0.125rem;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+/* ===== FILTER SECTION ===== */
+.filter-section {
+    padding: 1.25rem 1.5rem;
+}
+
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.filter-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+/* ===== FORM ELEMENTS ===== */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--gray-600);
+    margin-bottom: 0.375rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius);
+    background: white;
+    transition: all 0.15s ease;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.form-control:disabled,
+.form-control[readonly] {
+    background-color: var(--gray-100);
+    border-color: var(--gray-300);
+    color: var(--gray-500);
+    cursor: not-allowed;
+}
+
+select.form-control {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+    background-repeat: no-repeat;
+    background-size: 1.25rem;
+    padding-right: 2.5rem;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    gap: 0.375rem;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.btn-primary:hover {
+    background: var(--primary-dark);
+    border-color: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.btn-outline {
+    background: white;
+    color: var(--gray-700);
+    border-color: var(--gray-300);
+}
+
+.btn-outline:hover {
+    background: var(--gray-50);
+    border-color: var(--gray-400);
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+}
+
+.btn-danger:hover {
+    background: var(--danger-dark);
+    border-color: var(--danger-dark);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+}
+
+/* ===== TABLE ===== */
+.table-container {
+    overflow-x: auto;
+    margin: 0;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th {
+    background: var(--gray-50);
+    padding: 0.875rem 1.5rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--gray-600);
+    border-bottom: 2px solid var(--gray-200);
+    white-space: nowrap;
+}
+
+.table td {
+    padding: 1rem 1.5rem;
+    font-size: 0.875rem;
+    color: var(--gray-700);
+    border-bottom: 1px solid var(--gray-200);
+    vertical-align: middle;
+}
+
+.table tbody tr:hover {
+    background: var(--gray-50);
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* User avatar in table */
+.user-avatar {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 9999px;
+    background: var(--primary-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 1rem;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.user-name {
+    font-weight: 500;
+    color: var(--gray-800);
+}
+
+.user-username {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+}
+
+/* Action buttons */
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.action-btn {
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--gray-200);
+    background: white;
+    color: var(--gray-600);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.action-btn:hover {
+    background: var(--gray-100);
+    border-color: var(--gray-300);
+    transform: translateY(-1px);
+}
+
+.action-btn.edit:hover { color: var(--primary); border-color: var(--primary); }
+.action-btn.key:hover { color: var(--warning); border-color: var(--warning); }
+.action-btn.delete:hover { color: var(--danger); border-color: var(--danger); }
+
+/* ===== EMPTY STATE ===== */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1.5rem;
+}
+
+.empty-state-icon {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 9999px;
+    background: var(--gray-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    color: var(--gray-400);
+    font-size: 2rem;
+}
+
+.empty-state h4 {
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 0.25rem;
+    font-size: 1rem;
+}
+
+.empty-state p {
+    color: var(--gray-500);
+    font-size: 0.875rem;
+    margin-bottom: 1.25rem;
+}
+
+/* ===== MODALS ===== */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+    overflow-y: auto;
+}
+
+.modal-dialog {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 100%;
+    padding: 2rem 1rem;
+}
+
+.modal-content {
+    background: white;
+    border-radius: var(--radius-lg);
+    max-width: 500px;
+    width: 100%;
+    box-shadow: var(--shadow-xl);
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.modal-header h3 {
+    font-weight: 600;
+    color: var(--gray-800);
+    margin: 0;
+    font-size: 1.125rem;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--gray-400);
+    cursor: pointer;
+    font-size: 1.25rem;
+    padding: 0.25rem;
+    border-radius: 9999px;
+    transition: all 0.15s ease;
+}
+
+.modal-close:hover {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-footer {
+    padding: 1.25rem 1.5rem;
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.modal-footer .btn {
+    flex: 1;
+}
+
+/* ===== ALERTS ===== */
+.alert {
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alert-success {
+    background: #d1fae5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+}
+
+.alert-error {
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+}
+
+.alert-icon {
+    font-size: 1.25rem;
+}
+
+.alert-content {
+    flex: 1;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1024px) {
+    .stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .filter-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .card-header {
+        padding: 1rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .filter-section {
+        padding: 1rem;
+    }
+    
+    .filter-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+    
+    .table th,
+    .table td {
+        padding: 0.75rem 1rem;
+    }
+    
+    .user-avatar {
+        width: 2rem;
+        height: 2rem;
+        font-size: 0.875rem;
+    }
+    
+    .hide-mobile {
+        display: none;
+    }
+    
+    .modal-dialog {
+        padding: 1rem;
+    }
+    
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+    
+    .action-btn {
+        width: 100%;
+    }
+}
+</style>
+
+<!-- Main Content Container -->
+<div class="container" style="max-width: 1400px; margin: 0 auto; padding: 0 1.5rem;">
+
+    <!-- Alert Message -->
+    <?php if ($alert): ?>
+    <div class="alert alert-<?= $alert['type'] ?>">
+        <i class="fas <?= $alert['type'] == 'success' ? 'fa-check-circle' : 'fa-exclamation-circle' ?> alert-icon"></i>
+        <span class="alert-content"><?= htmlspecialchars($alert['message']) ?></span>
+    </div>
+    <?php endif; ?>
+
+    <!-- Stats Cards -->
+    <?php
+    $totalUsers = $conn->query("SELECT COUNT(*) as total FROM users")->fetch_assoc()['total'];
+    $totalAdmins = $conn->query("SELECT COUNT(*) as total FROM users WHERE role = 'admin'")->fetch_assoc()['total'];
+    $totalMembers = $conn->query("SELECT COUNT(*) as total FROM users WHERE role = 'member'")->fetch_assoc()['total'];
+    $totalSaldo = $conn->query("SELECT SUM(saldo) as total FROM users WHERE status = 'active'")->fetch_assoc()['total'] ?? 0;
+    ?>
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-content">
+                <div>
+                    <div class="stat-label">Total User</div>
+                    <div class="stat-value"><?= number_format($totalUsers) ?></div>
+                </div>
+                <div class="stat-icon blue">
+                    <i class="fas fa-users"></i>
+                </div>
+            </div>
         </div>
-        <span class="text-lg font-bold leading-tight">
-            <span class="text-blue-600">PPOB</span> Express
-        </span>
+        <div class="stat-card">
+            <div class="stat-content">
+                <div>
+                    <div class="stat-label">Admin</div>
+                    <div class="stat-value" style="color: var(--primary);"><?= number_format($totalAdmins) ?></div>
+                </div>
+                <div class="stat-icon blue">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-content">
+                <div>
+                    <div class="stat-label">Member</div>
+                    <div class="stat-value" style="color: var(--secondary-dark);"><?= number_format($totalMembers) ?></div>
+                </div>
+                <div class="stat-icon green">
+                    <i class="fas fa-user"></i>
+                </div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-content">
+                <div>
+                    <div class="stat-label">Total Saldo</div>
+                    <div class="stat-value" style="font-size: 1.25rem;"><?= rupiah($totalSaldo) ?></div>
+                </div>
+                <div class="stat-icon purple">
+                    <i class="fas fa-coins"></i>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Nav -->
-    <nav class="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        <a href="index.php"    class="menu-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
-        <a href="pulsa.php"    class="menu-item"><i class="fas fa-mobile-alt"></i><span>Isi Pulsa</span></a>
-        <a href="kuota.php"    class="menu-item"><i class="fas fa-wifi"></i><span>Paket Data</span></a>
-        <a href="listrik.php"  class="menu-item"><i class="fas fa-bolt"></i><span>Token Listrik</span></a>
-        <a href="transfer.php" class="menu-item"><i class="fas fa-money-bill-transfer"></i><span>Transfer Tunai</span></a>
-        <a href="deposit.php"  class="menu-item"><i class="fas fa-plus-circle"></i><span>Deposit Saldo</span></a>
-        <a href="riwayat.php"  class="menu-item"><i class="fas fa-history"></i><span>Riwayat Transaksi</span></a>
-        
-        <!-- Admin Menu -->
-        <div class="pt-4 mt-2 border-t border-gray-100">
-            <p class="px-3 text-xs text-gray-400 uppercase tracking-wider mb-2 font-semibold">Admin Menu</p>
-            <a href="kelola_user.php"  class="menu-item active"><i class="fas fa-users"></i><span>Kelola User</span></a>
-            <a href="kelola_produk.php" class="menu-item"><i class="fas fa-box"></i><span>Kelola Produk</span></a>
-            <a href="laporan.php"     class="menu-item"><i class="fas fa-chart-bar"></i><span>Laporan</span></a>
+    <!-- Filter Card -->
+    <div class="card">
+        <div class="filter-section">
+            <form method="GET">
+                <div class="filter-grid">
+                    <div>
+                        <label class="form-label">Cari User</label>
+                        <input type="text" name="search" class="form-control" 
+                               value="<?= htmlspecialchars($search) ?>" 
+                               placeholder="Username, Nama, Email, No HP">
+                    </div>
+                    <div>
+                        <label class="form-label">Role</label>
+                        <select name="role" class="form-control">
+                            <option value="">Semua Role</option>
+                            <option value="admin" <?= $filter_role == 'admin' ? 'selected' : '' ?>>Admin</option>
+                            <option value="member" <?= $filter_role == 'member' ? 'selected' : '' ?>>Member</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-control">
+                            <option value="">Semua Status</option>
+                            <option value="active" <?= $filter_status == 'active' ? 'selected' : '' ?>>Active</option>
+                            <option value="inactive" <?= $filter_status == 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                            <option value="suspended" <?= $filter_status == 'suspended' ? 'selected' : '' ?>>Suspended</option>
+                        </select>
+                    </div>
+                    <div class="filter-actions">
+                        <button type="submit" class="btn btn-primary flex-1">
+                            <i class="fas fa-filter"></i> Filter
+                        </button>
+                        <a href="kelola_user.php" class="btn btn-outline">
+                            <i class="fas fa-sync-alt"></i>
+                        </a>
+                    </div>
+                </div>
+            </form>
         </div>
-    </nav>
-
-    <!-- Footer -->
-    <div class="p-3 border-t border-gray-100 flex-shrink-0">
-        <a href="logout.php" class="menu-item text-red-400 hover:text-red-600 hover:bg-red-50">
-            <i class="fas fa-sign-out-alt"></i><span>Logout</span>
-        </a>
     </div>
-</aside>
 
-<!-- Overlay (mobile) -->
-<div id="overlay" onclick="closeSidebar()"></div>
-
-<!-- ═══════════════════════════════════════════
-     MAIN CONTENT
-════════════════════════════════════════════ -->
-<div id="main-content">
-
-    <!-- ── Sticky Header ── -->
-    <header class="sticky-header px-4 py-3 flex items-center justify-between gap-3">
-        <!-- Kiri: Toggle + User Info -->
-        <div class="flex items-center gap-3 min-w-0">
-            <button id="toggleBtn" onclick="toggleSidebar()"
-                class="w-9 h-9 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-blue-600 flex-shrink-0"
-                title="Toggle Sidebar">
-                <i class="fas fa-bars"></i>
+    <!-- Users Table Card -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3>Daftar User</h3>
+                <p><?= $users->num_rows ?> user ditemukan</p>
+            </div>
+            <button onclick="openModal('addUserModal')" class="btn btn-primary">
+                <i class="fas fa-plus"></i>
+                Tambah User
             </button>
+        </div>
 
-            <div class="flex items-center gap-2 min-w-0">
-                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-user text-white text-xs"></i>
-                </div>
-                <div class="min-w-0 hidden sm:block">
-                    <p class="font-semibold text-gray-800 text-sm truncate"><?= htmlspecialchars($_SESSION['nama_lengkap']) ?></p>
-                    <p class="text-xs text-gray-500"><?= ucfirst($_SESSION['role']) ?></p>
-                </div>
+        <?php if ($users->num_rows > 0): ?>
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>User</th>
+                        <th>Kontak</th>
+                        <th>Saldo</th>
+                        <th>Role & Status</th>
+                        <th>Bergabung</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php while ($user = $users->fetch_assoc()): ?>
+                    <tr>
+                        <td style="color: var(--gray-500); font-weight: 500;">#<?= $user['id'] ?></td>
+                        <td>
+                            <div class="user-info">
+                                <div class="user-avatar">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div class="user-details">
+                                    <span class="user-name"><?= htmlspecialchars($user['nama_lengkap']) ?></span>
+                                    <span class="user-username">@<?= htmlspecialchars($user['username']) ?></span>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-weight: 500;"><?= htmlspecialchars($user['email']) ?></div>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);"><?= htmlspecialchars($user['no_hp'] ?: '-') ?></div>
+                        </td>
+                        <td>
+                            <div style="font-weight: 600; color: var(--gray-800);"><?= rupiah($user['saldo']) ?></div>
+                            <button onclick="openUpdateSaldoModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['nama_lengkap']) ?>', <?= $user['saldo'] ?>)" 
+                                    class="action-btn edit" style="margin-top: 0.25rem;" title="Edit Saldo">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </td>
+                        <td>
+                            <div style="display: flex; flex-direction: column; gap: 0.375rem;">
+                                <span class="badge <?= $user['role'] == 'admin' ? 'badge-purple' : 'badge-primary' ?>">
+                                    <?= ucfirst($user['role']) ?>
+                                </span>
+                                <span class="badge badge-sm <?php
+                                    echo $user['status'] == 'active' ? 'badge-success' : 
+                                        ($user['status'] == 'inactive' ? 'badge-warning' : 'badge-danger');
+                                ?>">
+                                    <?= ucfirst($user['status']) ?>
+                                </span>
+                            </div>
+                        </td>
+                        <td style="color: var(--gray-500);">
+                            <?= date('d/m/Y', strtotime($user['created_at'])) ?>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button onclick="openEditModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>', '<?= htmlspecialchars($user['nama_lengkap']) ?>', '<?= htmlspecialchars($user['email']) ?>', '<?= htmlspecialchars($user['no_hp']) ?>', <?= $user['saldo'] ?>, '<?= $user['role'] ?>', '<?= $user['status'] ?>')" 
+                                        class="action-btn edit" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="openResetPasswordModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')" 
+                                        class="action-btn key" title="Reset Password">
+                                    <i class="fas fa-key"></i>
+                                </button>
+                                <?php if ($user['id'] != $_SESSION['user_id'] && $user['role'] != 'admin'): ?>
+                                <button onclick="openDeleteModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')" 
+                                        class="action-btn delete" title="Hapus">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endwhile; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php else: ?>
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-users"></i>
             </div>
-        </div>
-
-        <!-- Kanan: Saldo -->
-        <div class="flex items-center gap-2 flex-shrink-0">
-            <div class="bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg text-right">
-                <p class="text-xs text-gray-500 leading-none">Saldo</p>
-                <p class="font-bold text-blue-700 text-sm leading-tight"><?= rupiah($_SESSION['saldo']) ?></p>
-            </div>
-        </div>
-    </header>
-
-    <!-- ── Page Body ── -->
-    <div class="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
-
-        <!-- Page Title -->
-        <div>
-            <h2 class="text-xl font-bold text-gray-900">Kelola User</h2>
-            <p class="text-sm text-gray-500 mt-0.5">Kelola data member dan admin</p>
-        </div>
-
-        <?php if ($alert): ?>
-        <div class="alert p-4 rounded-lg flex items-center gap-3 <?= $alert['type'] == 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200' ?>">
-            <i class="fas <?= $alert['type'] == 'success' ? 'fa-check-circle text-green-500' : 'fa-exclamation-circle text-red-500' ?> text-lg"></i>
-            <span class="font-medium"><?= $alert['message'] ?></span>
+            <h4>Tidak ada user</h4>
+            <p>Tidak ada user yang sesuai dengan filter yang dipilih</p>
+            <button onclick="openModal('addUserModal')" class="btn btn-primary">
+                <i class="fas fa-user-plus"></i>
+                Tambah User Pertama
+            </button>
         </div>
         <?php endif; ?>
-        
-        <!-- Stats Summary -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <?php
-            // Hitung statistik
-            $totalUsers = $conn->query("SELECT COUNT(*) as total FROM users")->fetch_assoc()['total'];
-            $totalAdmins = $conn->query("SELECT COUNT(*) as total FROM users WHERE role = 'admin'")->fetch_assoc()['total'];
-            $totalMembers = $conn->query("SELECT COUNT(*) as total FROM users WHERE role = 'member'")->fetch_assoc()['total'];
-            $totalSaldo = $conn->query("SELECT SUM(saldo) as total FROM users WHERE status = 'active'")->fetch_assoc()['total'];
-            ?>
-            <div class="stat-card">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-xs text-gray-500 mb-1">Total User</p>
-                        <p class="text-2xl font-bold text-gray-800"><?= number_format($totalUsers) ?></p>
-                    </div>
-                    <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
-                        <i class="fas fa-users text-blue-600"></i>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-xs text-gray-500 mb-1">Admin</p>
-                        <p class="text-2xl font-bold text-blue-600"><?= number_format($totalAdmins) ?></p>
-                    </div>
-                    <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
-                        <i class="fas fa-user-shield text-blue-600"></i>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-xs text-gray-500 mb-1">Member</p>
-                        <p class="text-2xl font-bold text-green-600"><?= number_format($totalMembers) ?></p>
-                    </div>
-                    <div class="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center">
-                        <i class="fas fa-user text-green-600"></i>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-xs text-gray-500 mb-1">Total Saldo</p>
-                        <p class="text-lg font-bold text-purple-600"><?= rupiah($totalSaldo) ?></p>
-                    </div>
-                    <div class="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center">
-                        <i class="fas fa-coins text-purple-600"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Filter Card -->
-        <div class="card">
-            <!-- Mobile: collapsible -->
-            <div class="md:hidden">
-                <button onclick="toggleFilter()"
-                    class="w-full flex items-center justify-between px-4 py-3.5 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-xl transition">
-                    <span class="flex items-center gap-2">
-                        <i class="fas fa-filter text-blue-600"></i>
-                        Filter User
-                        <?php if ($search || $filter_role || $filter_status): ?>
-                        <span class="w-2 h-2 bg-blue-600 rounded-full"></span>
-                        <?php endif; ?>
-                    </span>
-                    <i id="filterIcon" class="fas fa-chevron-down text-gray-400 text-xs"></i>
-                </button>
+    </div>
 
-                <div id="filterContent" class="hidden px-4 pb-4 space-y-3 border-t border-gray-100">
-                    <form method="GET" class="pt-3 space-y-3">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Cari User</label>
-                            <input type="text" name="search" value="<?= htmlspecialchars($search) ?>"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Username, Nama, Email, No HP">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Role</label>
-                            <select name="role" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="">Semua Role</option>
-                                <option value="admin" <?= $filter_role == 'admin' ? 'selected' : '' ?>>Admin</option>
-                                <option value="member" <?= $filter_role == 'member' ? 'selected' : '' ?>>Member</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
-                            <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="">Semua Status</option>
-                                <option value="active" <?= $filter_status == 'active' ? 'selected' : '' ?>>Active</option>
-                                <option value="inactive" <?= $filter_status == 'inactive' ? 'selected' : '' ?>>Inactive</option>
-                                <option value="suspended" <?= $filter_status == 'suspended' ? 'selected' : '' ?>>Suspended</option>
-                            </select>
-                        </div>
-                        <div class="flex gap-2 pt-1">
-                            <button type="submit"
-                                class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition">
-                                <i class="fas fa-filter text-xs"></i> Terapkan
-                            </button>
-                            <a href="kelola_user.php"
-                                class="flex-1 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition">
-                                <i class="fas fa-sync-alt text-xs"></i> Reset
-                            </a>
-                        </div>
-                    </form>
-                </div>
-            </div>
+    <!-- MODALS -->
 
-            <!-- Desktop: full form -->
-            <div class="hidden md:block p-5">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="font-semibold text-gray-900 flex items-center gap-2">
-                        <i class="fas fa-filter text-blue-600 text-sm"></i>
-                        Filter User
-                    </h3>
-                    <?php if ($search || $filter_role || $filter_status): ?>
-                    <a href="kelola_user.php" class="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                        <i class="fas fa-times"></i> Hapus Filter
-                    </a>
-                    <?php endif; ?>
+    <!-- Modal Tambah User -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Tambah User Baru</h3>
+                    <button type="button" class="modal-close" onclick="closeModal('addUserModal')">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
-                <form method="GET">
-                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-600 mb-1.5">Cari User</label>
-                            <input type="text" name="search" value="<?= htmlspecialchars($search) ?>"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                placeholder="Username, Nama, Email, No HP">
+                <form method="POST" action="">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="action" value="add">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="form-label">Username <span style="color: var(--danger);">*</span></label>
+                            <input type="text" name="username" class="form-control" required placeholder="username">
                         </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-600 mb-1.5">Role</label>
-                            <select name="role" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="">Semua Role</option>
-                                <option value="admin" <?= $filter_role == 'admin' ? 'selected' : '' ?>>Admin</option>
-                                <option value="member" <?= $filter_role == 'member' ? 'selected' : '' ?>>Member</option>
+                        <div class="form-group">
+                            <label class="form-label">Password <span style="color: var(--danger);">*</span></label>
+                            <input type="password" name="password" class="form-control" required minlength="6" placeholder="Minimal 6 karakter">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Nama Lengkap <span style="color: var(--danger);">*</span></label>
+                            <input type="text" name="nama_lengkap" class="form-control" required placeholder="Nama lengkap">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Email <span style="color: var(--danger);">*</span></label>
+                            <input type="email" name="email" class="form-control" required placeholder="email@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">No. HP</label>
+                            <input type="tel" name="no_hp" class="form-control" placeholder="081234567890">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Saldo Awal</label>
+                            <input type="number" name="saldo" class="form-control" min="0" step="500" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Role</label>
+                            <select name="role" class="form-control">
+                                <option value="member">Member</option>
+                                <option value="admin">Admin</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
-                            <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="">Semua Status</option>
-                                <option value="active" <?= $filter_status == 'active' ? 'selected' : '' ?>>Active</option>
-                                <option value="inactive" <?= $filter_status == 'inactive' ? 'selected' : '' ?>>Inactive</option>
-                                <option value="suspended" <?= $filter_status == 'suspended' ? 'selected' : '' ?>>Suspended</option>
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-control">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="suspended">Suspended</option>
                             </select>
                         </div>
-                        <div class="flex items-end gap-2">
-                            <button type="submit"
-                                class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition">
-                                <i class="fas fa-filter text-xs"></i> Filter
-                            </button>
-                            <a href="kelola_user.php"
-                                class="px-3 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium flex items-center justify-center transition">
-                                <i class="fas fa-sync-alt text-xs"></i>
-                            </a>
-                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeModal('addUserModal')">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan</button>
                     </div>
                 </form>
             </div>
         </div>
-        
-        <!-- Users Table -->
-        <div class="card overflow-hidden">
-            <div class="px-4 md:px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                    <h3 class="font-semibold text-gray-900">Daftar User</h3>
-                    <p class="text-xs text-gray-400 mt-0.5"><?= $users->num_rows ?> user ditemukan</p>
-                </div>
-                <button onclick="openModal('addUserModal')" class="btn-primary px-4 py-2 rounded-lg font-medium flex items-center gap-2">
-                    <i class="fas fa-plus"></i>
-                    Tambah User
-                </button>
-            </div>
-            
-            <?php if ($users->num_rows > 0): ?>
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead>
-                        <tr class="table-header-row">
-                            <th class="text-left">ID</th>
-                            <th class="text-left">User</th>
-                            <th class="text-left">Kontak</th>
-                            <th class="text-left">Saldo</th>
-                            <th class="text-left">Role & Status</th>
-                            <th class="text-left">Bergabung</th>
-                            <th class="text-left">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php while ($user = $users->fetch_assoc()): ?>
-                        <tr class="table-row">
-                            <td class="whitespace-nowrap text-sm text-gray-500">#<?= $user['id'] ?></td>
-                            <td>
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0 h-10 w-10">
-                                        <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                            <i class="fas fa-user text-blue-600"></i>
-                                        </div>
-                                    </div>
-                                    <div class="ml-3">
-                                        <div class="text-sm font-medium text-gray-900"><?= htmlspecialchars($user['nama_lengkap']) ?></div>
-                                        <div class="text-xs text-gray-500">@<?= htmlspecialchars($user['username']) ?></div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="whitespace-nowrap">
-                                <div class="text-sm text-gray-900"><?= htmlspecialchars($user['email']) ?></div>
-                                <div class="text-xs text-gray-500"><?= htmlspecialchars($user['no_hp']) ?></div>
-                            </td>
-                            <td class="whitespace-nowrap">
-                                <div class="text-sm font-semibold text-gray-900"><?= rupiah($user['saldo']) ?></div>
-                                <button onclick="openUpdateSaldoModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['nama_lengkap']) ?>', <?= $user['saldo'] ?>)" 
-                                        class="text-xs text-blue-600 hover:text-blue-800 mt-1">
-                                    <i class="fas fa-edit mr-1"></i> Edit Saldo
-                                </button>
-                            </td>
-                            <td class="whitespace-nowrap">
-                                <div class="space-y-1">
-                                    <span class="badge badge-blue">
-                                        <?= ucfirst($user['role']) ?>
-                                    </span>
-                                    <?php if ($user['status'] == 'active'): ?>
-                                    <span class="badge badge-green">Active</span>
-                                    <?php elseif ($user['status'] == 'inactive'): ?>
-                                    <span class="badge badge-yellow">Inactive</span>
-                                    <?php else: ?>
-                                    <span class="badge badge-red">Suspended</span>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                            <td class="whitespace-nowrap text-sm text-gray-500">
-                                <?= date('d/m/Y', strtotime($user['created_at'])) ?>
-                            </td>
-                            <td class="whitespace-nowrap text-sm font-medium">
-                                <div class="flex gap-2">
-                                    <button onclick="openEditModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>', '<?= htmlspecialchars($user['nama_lengkap']) ?>', '<?= htmlspecialchars($user['email']) ?>', '<?= htmlspecialchars($user['no_hp']) ?>', <?= $user['saldo'] ?>, '<?= $user['role'] ?>', '<?= $user['status'] ?>')" 
-                                            class="text-blue-600 hover:text-blue-900" title="Edit">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button onclick="openResetPasswordModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')" 
-                                            class="text-yellow-600 hover:text-yellow-900" title="Reset Password">
-                                        <i class="fas fa-key"></i>
-                                    </button>
-                                    <?php if ($user['id'] != $_SESSION['user_id'] && $user['role'] != 'admin'): ?>
-                                    <button onclick="openDeleteModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')" 
-                                            class="text-red-600 hover:text-red-900" title="Hapus">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
-                    </tbody>
-                </table>
-            </div>
-            <?php else: ?>
-            <!-- Empty State -->
-            <div class="text-center py-16 px-4">
-                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i class="fas fa-users text-gray-300 text-3xl"></i>
-                </div>
-                <h3 class="font-semibold text-gray-700 mb-1">Tidak ada user</h3>
-                <p class="text-sm text-gray-400 mb-5">Tidak ada user yang sesuai dengan filter yang dipilih</p>
-                <button onclick="openModal('addUserModal')" 
-                    class="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition">
-                    <i class="fas fa-user-plus"></i> Tambah User Pertama
-                </button>
-            </div>
-            <?php endif; ?>
-        </div>
+    </div>
 
-    </div><!-- /page body -->
-</div><!-- /main-content -->
-
-<!-- Modal Tambah User -->
-<div id="addUserModal" class="modal">
-    <div class="modal-content">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h3 class="text-lg font-semibold text-gray-900">Tambah User Baru</h3>
+    <!-- Modal Edit User -->
+    <div id="editUserModal" class="modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Edit User</h3>
+                    <button type="button" class="modal-close" onclick="closeModal('editUserModal')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form method="POST" action="">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="action" value="update">
+                    <input type="hidden" name="user_id" id="edit_user_id">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="form-label">Username</label>
+                            <input type="text" id="edit_username" class="form-control" disabled readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Nama Lengkap <span style="color: var(--danger);">*</span></label>
+                            <input type="text" name="nama_lengkap" id="edit_nama_lengkap" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Email <span style="color: var(--danger);">*</span></label>
+                            <input type="email" name="email" id="edit_email" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">No. HP</label>
+                            <input type="tel" name="no_hp" id="edit_no_hp" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Saldo</label>
+                            <input type="number" name="saldo" id="edit_saldo" class="form-control" min="0" step="500">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Role</label>
+                            <select name="role" id="edit_role" class="form-control">
+                                <option value="member">Member</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select name="status" id="edit_status" class="form-control">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="suspended">Suspended</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeModal('editUserModal')">Batal</button>
+                        <button type="submit" class="btn btn-primary">Update</button>
+                    </div>
+                </form>
+            </div>
         </div>
-        <form method="POST" action="" class="p-6">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-            <input type="hidden" name="action" value="add">
-            <div class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Username *</label>
-                        <input type="text" name="username" required
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                               placeholder="username">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Password *</label>
-                        <input type="password" name="password" required minlength="6"
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                               placeholder="Minimal 6 karakter">
-                    </div>
+    </div>
+
+    <!-- Modal Update Saldo -->
+    <div id="updateSaldoModal" class="modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Update Saldo User</h3>
+                    <button type="button" class="modal-close" onclick="closeModal('updateSaldoModal')">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap *</label>
-                    <input type="text" name="nama_lengkap" required
-                           class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                           placeholder="Nama lengkap">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                        <input type="email" name="email" required
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                               placeholder="email@example.com">
+                <form method="POST" action="">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="action" value="update_saldo">
+                    <input type="hidden" name="user_id" id="saldo_user_id">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="form-label">User</label>
+                            <input type="text" id="saldo_user_name" class="form-control" disabled readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Saldo Saat Ini</label>
+                            <input type="text" id="current_saldo" class="form-control" disabled readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tipe Update</label>
+                            <div style="display: flex; gap: 1rem; padding: 0.5rem 0;">
+                                <label style="display: flex; align-items: center; gap: 0.375rem;">
+                                    <input type="radio" name="saldo_tipe" value="tambah" checked style="accent-color: var(--primary);">
+                                    <span style="font-size: 0.875rem;">Tambah Saldo</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.375rem;">
+                                    <input type="radio" name="saldo_tipe" value="kurang" style="accent-color: var(--primary);">
+                                    <span style="font-size: 0.875rem;">Kurangi Saldo</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Jumlah (Rp) <span style="color: var(--danger);">*</span></label>
+                            <input type="number" name="jumlah" class="form-control" required min="1000" step="1000" placeholder="1000">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Keterangan</label>
+                            <textarea name="keterangan" class="form-control" rows="2" placeholder="Alasan update saldo..."></textarea>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">No. HP</label>
-                        <input type="tel" name="no_hp"
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                               placeholder="081234567890">
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeModal('updateSaldoModal')">Batal</button>
+                        <button type="submit" class="btn btn-primary">Update Saldo</button>
                     </div>
-                </div>
-                <div class="grid grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Saldo Awal</label>
-                        <input type="number" name="saldo" min="0" step="500"
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                               value="0">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                        <select name="role" class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
-                            <option value="member" selected>Member</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                        <select name="status" class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
-                            <option value="active" selected>Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="suspended">Suspended</option>
-                        </select>
-                    </div>
-                </div>
+                </form>
             </div>
-            <div class="flex gap-3 pt-6">
-                <button type="button" onclick="closeModal('addUserModal')" 
-                        class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition">
-                    Batal
-                </button>
-                <button type="submit" 
-                        class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold">
-                    <i class="fas fa-save mr-2"></i> Simpan
-                </button>
+        </div>
+    </div>
+
+    <!-- Modal Reset Password -->
+    <div id="resetPasswordModal" class="modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Reset Password User</h3>
+                    <button type="button" class="modal-close" onclick="closeModal('resetPasswordModal')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form method="POST" action="" onsubmit="return validatePassword()">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="action" value="reset_password">
+                    <input type="hidden" name="user_id" id="reset_user_id">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="form-label">Username</label>
+                            <input type="text" id="reset_username" class="form-control" disabled readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Password Baru <span style="color: var(--danger);">*</span></label>
+                            <input type="password" name="new_password" class="form-control" required minlength="6" placeholder="Minimal 6 karakter">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Konfirmasi Password <span style="color: var(--danger);">*</span></label>
+                            <input type="password" id="confirm_password" class="form-control" required placeholder="Ulangi password baru">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeModal('resetPasswordModal')">Batal</button>
+                        <button type="submit" class="btn btn-primary">Reset Password</button>
+                    </div>
+                </form>
             </div>
-        </form>
+        </div>
+    </div>
+
+    <!-- Modal Delete User -->
+    <div id="deleteUserModal" class="modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Hapus User</h3>
+                    <button type="button" class="modal-close" onclick="closeModal('deleteUserModal')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form method="POST" action="">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="user_id" id="delete_user_id">
+                    <div class="modal-body">
+                        <div style="text-align: center; padding: 1rem 0;">
+                            <div style="width: 4rem; height: 4rem; background: #fee2e2; border-radius: 9999px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+                                <i class="fas fa-exclamation-triangle" style="color: var(--danger); font-size: 1.5rem;"></i>
+                            </div>
+                            <p style="color: var(--gray-700); margin-bottom: 0.5rem;">
+                                Anda yakin ingin menghapus user <strong id="delete_username" style="color: var(--gray-900);"></strong>?
+                            </p>
+                            <p style="color: var(--gray-500); font-size: 0.875rem;">
+                                Data transaksi user ini juga akan dihapus. Tindakan ini tidak dapat dibatalkan.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeModal('deleteUserModal')">Batal</button>
+                        <button type="submit" class="btn btn-danger">Hapus</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Modal Edit User -->
-<div id="editUserModal" class="modal">
-    <div class="modal-content">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h3 class="text-lg font-semibold text-gray-900">Edit User</h3>
-        </div>
-        <form method="POST" action="" class="p-6">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-            <input type="hidden" name="action" value="update">
-            <input type="hidden" name="user_id" id="edit_user_id">
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                    <input type="text" id="edit_username" disabled
-                           class="input-field w-full px-4 py-2 border border-gray-300 bg-gray-50 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap *</label>
-                    <input type="text" name="nama_lengkap" id="edit_nama_lengkap" required
-                           class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                        <input type="email" name="email" id="edit_email" required
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">No. HP</label>
-                        <input type="tel" name="no_hp" id="edit_no_hp"
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
-                    </div>
-                </div>
-                <div class="grid grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Saldo</label>
-                        <input type="number" name="saldo" id="edit_saldo" min="0" step="500"
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                        <select name="role" id="edit_role" class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
-                            <option value="member">Member</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                        <select name="status" id="edit_status" class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="suspended">Suspended</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div class="flex gap-3 pt-6">
-                <button type="button" onclick="closeModal('editUserModal')" 
-                        class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition">
-                    Batal
-                </button>
-                <button type="submit" 
-                        class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold">
-                    <i class="fas fa-save mr-2"></i> Update
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal Update Saldo -->
-<div id="updateSaldoModal" class="modal">
-    <div class="modal-content">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h3 class="text-lg font-semibold text-gray-900">Update Saldo User</h3>
-        </div>
-        <form method="POST" action="" class="p-6">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-            <input type="hidden" name="action" value="update_saldo">
-            <input type="hidden" name="user_id" id="saldo_user_id">
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">User</label>
-                    <input type="text" id="saldo_user_name" disabled
-                           class="input-field w-full px-4 py-2 border border-gray-300 bg-gray-50 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Saldo Saat Ini</label>
-                    <input type="text" id="current_saldo" disabled
-                           class="input-field w-full px-4 py-2 border border-gray-300 bg-gray-50 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipe Update</label>
-                    <div class="flex gap-4">
-                        <label class="inline-flex items-center">
-                            <input type="radio" name="saldo_tipe" value="tambah" checked 
-                                   class="text-blue-600 focus:ring-blue-500">
-                            <span class="ml-2">Tambah Saldo</span>
-                        </label>
-                        <label class="inline-flex items-center">
-                            <input type="radio" name="saldo_tipe" value="kurang"
-                                   class="text-blue-600 focus:ring-blue-500">
-                            <span class="ml-2">Kurangi Saldo</span>
-                        </label>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah (Rp) *</label>
-                    <input type="number" name="jumlah" required min="1000" step="1000"
-                           class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                           placeholder="1000">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
-                    <textarea name="keterangan" rows="2"
-                              class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                              placeholder="Alasan update saldo..."></textarea>
-                </div>
-            </div>
-            <div class="flex gap-3 pt-6">
-                <button type="button" onclick="closeModal('updateSaldoModal')" 
-                        class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition">
-                    Batal
-                </button>
-                <button type="submit" 
-                        class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold">
-                    <i class="fas fa-coins mr-2"></i> Update Saldo
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal Reset Password -->
-<div id="resetPasswordModal" class="modal">
-    <div class="modal-content">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h3 class="text-lg font-semibold text-gray-900">Reset Password User</h3>
-        </div>
-        <form method="POST" action="" class="p-6">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-            <input type="hidden" name="action" value="reset_password">
-            <input type="hidden" name="user_id" id="reset_user_id">
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                    <input type="text" id="reset_username" disabled
-                           class="input-field w-full px-4 py-2 border border-gray-300 bg-gray-50 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Password Baru *</label>
-                    <input type="password" name="new_password" required minlength="6"
-                           class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                           placeholder="Minimal 6 karakter">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Konfirmasi Password *</label>
-                    <input type="password" id="confirm_password" required
-                           class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                           placeholder="Ulangi password baru">
-                </div>
-            </div>
-            <div class="flex gap-3 pt-6">
-                <button type="button" onclick="closeModal('resetPasswordModal')" 
-                        class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition">
-                    Batal
-                </button>
-                <button type="submit" onclick="return validatePassword()"
-                        class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold">
-                    <i class="fas fa-key mr-2"></i> Reset Password
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal Delete User -->
-<div id="deleteUserModal" class="modal">
-    <div class="modal-content">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h3 class="text-lg font-semibold text-gray-900">Hapus User</h3>
-        </div>
-        <form method="POST" action="" class="p-6">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-            <input type="hidden" name="action" value="delete">
-            <input type="hidden" name="user_id" id="delete_user_id">
-            <div class="space-y-4">
-                <div class="text-center">
-                    <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
-                    </div>
-                    <p class="text-gray-700 mb-2">Anda yakin ingin menghapus user <span id="delete_username" class="font-semibold"></span>?</p>
-                    <p class="text-sm text-gray-500">Data transaksi user ini juga akan dihapus. Tindakan ini tidak dapat dibatalkan.</p>
-                </div>
-            </div>
-            <div class="flex gap-3 pt-6">
-                <button type="button" onclick="closeModal('deleteUserModal')" 
-                        class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition">
-                    Batal
-                </button>
-                <button type="submit" 
-                        class="btn-danger flex-1 py-3 px-4 rounded-lg font-semibold">
-                    <i class="fas fa-trash mr-2"></i> Hapus
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
+<!-- JavaScript -->
 <script>
-// ═══════════════════════════════════════════════════════
-//  SIDEBAR LOGIC — bekerja di mobile DAN desktop
-// ═══════════════════════════════════════════════════════
-
-const sidebar     = document.getElementById('sidebar');
-const mainContent = document.getElementById('main-content');
-const overlay     = document.getElementById('overlay');
-
-// Key localStorage
-const STORAGE_KEY = 'sidebar_open';
-
-/**
- * Cek apakah layar ≥ 768px (desktop)
- */
-function isDesktop() {
-    return window.innerWidth >= 768;
-}
-
-/**
- * Buka sidebar
- */
-function openSidebar() {
-    if (isDesktop()) {
-        // Desktop: geser sidebar masuk, beri margin pada main
-        sidebar.classList.remove('sidebar-hidden');
-        mainContent.classList.remove('sidebar-hidden');
-        localStorage.setItem(STORAGE_KEY, 'true');
-    } else {
-        // Mobile: slide in + tampilkan overlay
-        sidebar.classList.add('sidebar-open');
-        overlay.classList.add('show');
-    }
-}
-
-/**
- * Tutup sidebar
- */
-function closeSidebar() {
-    if (isDesktop()) {
-        sidebar.classList.add('sidebar-hidden');
-        mainContent.classList.add('sidebar-hidden');
-        localStorage.setItem(STORAGE_KEY, 'false');
-    } else {
-        sidebar.classList.remove('sidebar-open');
-        overlay.classList.remove('show');
-    }
-}
-
-/**
- * Toggle sidebar — dipanggil tombol hamburger
- */
-function toggleSidebar() {
-    if (isDesktop()) {
-        // Desktop: cek apakah saat ini hidden
-        const isHidden = sidebar.classList.contains('sidebar-hidden');
-        isHidden ? openSidebar() : closeSidebar();
-    } else {
-        // Mobile: cek apakah saat ini open
-        const isOpen = sidebar.classList.contains('sidebar-open');
-        isOpen ? closeSidebar() : openSidebar();
-    }
-}
-
-/**
- * Inisialisasi state saat halaman dimuat
- */
-function initSidebar() {
-    if (isDesktop()) {
-        // Desktop: baca dari localStorage (default: terbuka)
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved === 'false') {
-            // User sebelumnya menutup → tetap tutup
-            sidebar.classList.add('sidebar-hidden');
-            mainContent.classList.add('sidebar-hidden');
-        } else {
-            // Default terbuka
-            sidebar.classList.remove('sidebar-hidden');
-            sidebar.classList.remove('sidebar-open');
-            mainContent.classList.remove('sidebar-hidden');
-            overlay.classList.remove('show');
-        }
-    } else {
-        // Mobile: selalu mulai tertutup
-        sidebar.classList.remove('sidebar-hidden');
-        sidebar.classList.remove('sidebar-open');
-        mainContent.classList.remove('sidebar-hidden'); // margin-left di-override CSS
-        overlay.classList.remove('show');
-    }
-}
-
-// Jalankan saat load
-document.addEventListener('DOMContentLoaded', initSidebar);
-
-// Re-inisialisasi saat resize (pindah breakpoint)
-let resizeTimer;
-window.addEventListener('resize', function () {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(initSidebar, 100);
-});
-
-// Tutup sidebar mobile saat klik menu item
-document.querySelectorAll('.menu-item').forEach(item => {
-    item.addEventListener('click', () => {
-        if (!isDesktop()) closeSidebar();
-    });
-});
-
-// ═══════════════════════════════════════════════════════
-//  FILTER TOGGLE (mobile)
-// ═══════════════════════════════════════════════════════
-function toggleFilter() {
-    const content = document.getElementById('filterContent');
-    const icon    = document.getElementById('filterIcon');
-    const isHidden = content.classList.contains('hidden');
-
-    if (isHidden) {
-        content.classList.remove('hidden');
-        icon.classList.add('icon-rotated');
-    } else {
-        content.classList.add('hidden');
-        icon.classList.remove('icon-rotated');
-    }
-}
-
-// ═══════════════════════════════════════════════════════
-//  MODAL FUNCTIONS
-// ═══════════════════════════════════════════════════════
+// Modal Functions
 function openModal(modalId) {
     document.getElementById(modalId).style.display = 'block';
     document.body.style.overflow = 'hidden';
@@ -1381,13 +1471,10 @@ function closeModal(modalId) {
 
 // Close modal when clicking outside
 window.onclick = function(event) {
-    const modals = document.querySelectorAll('.modal');
-    modals.forEach(modal => {
-        if (event.target == modal) {
-            modal.style.display = 'none';
-            document.body.style.overflow = 'auto';
-        }
-    });
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
 }
 
 // Edit User Modal
@@ -1407,7 +1494,7 @@ function openEditModal(userId, username, namaLengkap, email, noHp, saldo, role, 
 function openUpdateSaldoModal(userId, userName, currentSaldo) {
     document.getElementById('saldo_user_id').value = userId;
     document.getElementById('saldo_user_name').value = userName;
-    document.getElementById('current_saldo').value = formatRupiah(currentSaldo);
+    document.getElementById('current_saldo').value = 'Rp ' + currentSaldo.toLocaleString('id-ID');
     openModal('updateSaldoModal');
 }
 
@@ -1425,12 +1512,7 @@ function openDeleteModal(userId, username) {
     openModal('deleteUserModal');
 }
 
-// Format Rupiah
-function formatRupiah(num) {
-    return 'Rp ' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-}
-
-// Validate password confirmation
+// Validate Password
 function validatePassword() {
     const password = document.querySelector('input[name="new_password"]');
     const confirmPassword = document.getElementById('confirm_password');
@@ -1450,17 +1532,29 @@ function validatePassword() {
     return confirm('Anda yakin ingin reset password user ini?');
 }
 
-// Auto-format saldo input
-document.addEventListener('input', function(e) {
-    if (e.target.name === 'saldo' || e.target.name === 'jumlah') {
-        const value = e.target.value.replace(/[^0-9]/g, '');
-        e.target.value = value;
-    }
+// Format Rupiah helper
+function formatRupiah(num) {
+    return 'Rp ' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+// Auto-submit filter on change (desktop)
+document.querySelectorAll('select[name="role"], select[name="status"]').forEach(el => {
+    el.addEventListener('change', function() {
+        this.closest('form').submit();
+    });
+});
+
+// Debounced search
+let searchTimeout;
+document.querySelector('input[name="search"]')?.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        this.closest('form').submit();
+    }, 500);
 });
 </script>
 
-</body>
-</html>
 <?php 
+include 'layout_footer.php';
 $conn->close();
 ?>

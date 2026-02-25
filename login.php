@@ -9,6 +9,11 @@ if (isset($_SESSION['user_id'])) {
     exit;
 }
 
+// Generate CSRF token if not exists
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $error = '';
 // Proses Login
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
