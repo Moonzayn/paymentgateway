@@ -6,45 +6,39 @@ $user_id = $_SESSION['user_id'];
 $role = $_SESSION['role'];
 $_SESSION['saldo'] = getSaldo($user_id);
 
-// Dummy game data
+// Dummy game data - Codashop style: just User ID (Zone ID for ML)
 $games = [
-    ['id' => 'ml', 'name' => 'Mobile Legends', 'color' => '#3653D8', 'has_server' => true,
-     'server_label' => 'Pilih Server',
-     'servers' => [
-         ['id' => 'asia', 'name' => '(Singapore) Asia'], ['id' => 'sea', 'name' => 'Southeast Asia'],
-         ['id' => 'id', 'name' => 'Indonesia'], ['id' => 'my', 'name' => 'Malaysia'],
-         ['id' => 'ph', 'name' => 'Philippines'], ['id' => 'th', 'name' => 'Thailand'],
-     ],
+    ['id' => 'ml', 'name' => 'Mobile Legends', 'color' => '#3653D8', 'needs_zone_id' => true,
      'products' => [
-         ['id' => 1, 'name' => 'Diamonds 5', 'nominal' => 5, 'price' => 3500],
-         ['id' => 2, 'name' => 'Diamonds 12', 'nominal' => 12, 'price' => 7500],
-         ['id' => 3, 'name' => 'Diamonds 28', 'nominal' => 28, 'price' => 15000],
-         ['id' => 4, 'name' => 'Diamonds 56', 'nominal' => 56, 'price' => 28000],
-         ['id' => 5, 'name' => 'Diamonds 84', 'nominal' => 84, 'price' => 42000],
-         ['id' => 6, 'name' => 'Diamonds 170', 'nominal' => 170, 'price' => 75000],
-         ['id' => 7, 'name' => 'Diamonds 257', 'nominal' => 257, 'price' => 110000],
-         ['id' => 8, 'name' => 'Diamonds 429', 'nominal' => 429, 'price' => 180000],
-         ['id' => 9, 'name' => 'Diamonds 514', 'nominal' => 514, 'price' => 215000],
-         ['id' => 10, 'name' => 'Diamonds 772', 'nominal' => 772, 'price' => 320000],
-         ['id' => 11, 'name' => 'Diamonds 1030', 'nominal' => 1030, 'price' => 420000],
-         ['id' => 12, 'name' => 'Diamonds 1545', 'nominal' => 1545, 'price' => 620000],
+         ['id' => 1, 'name' => '5 Diamonds', 'nominal' => 5, 'price' => 3500],
+         ['id' => 2, 'name' => '12 Diamonds', 'nominal' => 12, 'price' => 7500],
+         ['id' => 3, 'name' => '28 Diamonds', 'nominal' => 28, 'price' => 15000],
+         ['id' => 4, 'name' => '56 Diamonds', 'nominal' => 56, 'price' => 28000],
+         ['id' => 5, 'name' => '84 Diamonds', 'nominal' => 84, 'price' => 42000],
+         ['id' => 6, 'name' => '170 Diamonds', 'nominal' => 170, 'price' => 75000],
+         ['id' => 7, 'name' => '257 Diamonds', 'nominal' => 257, 'price' => 110000],
+         ['id' => 8, 'name' => '429 Diamonds', 'nominal' => 429, 'price' => 180000],
+         ['id' => 9, 'name' => '514 Diamonds', 'nominal' => 514, 'price' => 215000],
+         ['id' => 10, 'name' => '772 Diamonds', 'nominal' => 772, 'price' => 320000],
+         ['id' => 11, 'name' => '1030 Diamonds', 'nominal' => 1030, 'price' => 420000],
+         ['id' => 12, 'name' => '1545 Diamonds', 'nominal' => 1545, 'price' => 620000],
      ]],
-    ['id' => 'ff', 'name' => 'Free Fire', 'color' => '#FF5272', 'has_server' => false, 'servers' => [],
+    ['id' => 'ff', 'name' => 'Free Fire', 'color' => '#FF5272', 'needs_zone_id' => false,
      'products' => [
-         ['id' => 21, 'name' => 'Diamonds 5', 'nominal' => 5, 'price' => 1500],
-         ['id' => 22, 'name' => 'Diamonds 12', 'nominal' => 12, 'price' => 3500],
-         ['id' => 23, 'name' => 'Diamonds 50', 'nominal' => 50, 'price' => 12000],
-         ['id' => 24, 'name' => 'Diamonds 70', 'nominal' => 70, 'price' => 16000],
-         ['id' => 25, 'name' => 'Diamonds 100', 'nominal' => 100, 'price' => 22000],
-         ['id' => 26, 'name' => 'Diamonds 140', 'nominal' => 140, 'price' => 30000],
-         ['id' => 27, 'name' => 'Diamonds 200', 'nominal' => 200, 'price' => 42000],
-         ['id' => 28, 'name' => 'Diamonds 280', 'nominal' => 280, 'price' => 58000],
-         ['id' => 29, 'name' => 'Diamonds 500', 'nominal' => 500, 'price' => 99000],
-         ['id' => 30, 'name' => 'Diamonds 720', 'nominal' => 720, 'price' => 140000],
-         ['id' => 31, 'name' => 'Diamonds 1000', 'nominal' => 1000, 'price' => 190000],
-         ['id' => 32, 'name' => 'Diamonds 2000', 'nominal' => 2000, 'price' => 370000],
+         ['id' => 21, 'name' => '5 Diamonds', 'nominal' => 5, 'price' => 1500],
+         ['id' => 22, 'name' => '12 Diamonds', 'nominal' => 12, 'price' => 3500],
+         ['id' => 23, 'name' => '50 Diamonds', 'nominal' => 50, 'price' => 12000],
+         ['id' => 24, 'name' => '70 Diamonds', 'nominal' => 70, 'price' => 16000],
+         ['id' => 25, 'name' => '100 Diamonds', 'nominal' => 100, 'price' => 22000],
+         ['id' => 26, 'name' => '140 Diamonds', 'nominal' => 140, 'price' => 30000],
+         ['id' => 27, 'name' => '200 Diamonds', 'nominal' => 200, 'price' => 42000],
+         ['id' => 28, 'name' => '280 Diamonds', 'nominal' => 280, 'price' => 58000],
+         ['id' => 29, 'name' => '500 Diamonds', 'nominal' => 500, 'price' => 99000],
+         ['id' => 30, 'name' => '720 Diamonds', 'nominal' => 720, 'price' => 140000],
+         ['id' => 31, 'name' => '1000 Diamonds', 'nominal' => 1000, 'price' => 190000],
+         ['id' => 32, 'name' => '2000 Diamonds', 'nominal' => 2000, 'price' => 370000],
      ]],
-    ['id' => 'pubgm', 'name' => 'PUBG Mobile', 'color' => '#FF8B00', 'has_server' => false, 'servers' => [],
+    ['id' => 'pubgm', 'name' => 'PUBG Mobile', 'color' => '#FF8B00', 'needs_zone_id' => false,
      'products' => [
          ['id' => 41, 'name' => 'UC 60', 'nominal' => 60, 'price' => 12000],
          ['id' => 42, 'name' => 'UC 120', 'nominal' => 120, 'price' => 23000],
@@ -55,51 +49,44 @@ $games = [
          ['id' => 47, 'name' => 'UC 1200', 'nominal' => 1200, 'price' => 205000],
          ['id' => 48, 'name' => 'UC 2400', 'nominal' => 2400, 'price' => 405000],
      ]],
-    ['id' => 'genshin', 'name' => 'Genshin Impact', 'color' => '#4B9FE8', 'has_server' => true,
-     'server_label' => 'Pilih Server',
-     'servers' => [
-         ['id' => 'asia', 'name' => 'Asia'], ['id' => 'eu', 'name' => 'Europe'],
-         ['id' => 'us', 'name' => 'America'], ['id' => 'tw', 'name' => 'TW/HK/MO'],
-     ],
+     ['id' => 'genshin', 'name' => 'Genshin Impact', 'color' => '#4B9FE8', 'needs_zone_id' => false,
      'products' => [
-         ['id' => 51, 'name' => 'Primogems 60', 'nominal' => 60, 'price' => 15000],
-         ['id' => 52, 'name' => 'Primogems 300', 'nominal' => 300, 'price' => 65000],
-         ['id' => 53, 'name' => 'Primogems 980', 'nominal' => 980, 'price' => 195000],
-         ['id' => 54, 'name' => 'Primogems 1980', 'nominal' => 1980, 'price' => 385000],
-         ['id' => 55, 'name' => 'Primogems 3280', 'nominal' => 3280, 'price' => 625000],
-         ['id' => 56, 'name' => 'Primogems 6480', 'nominal' => 6480, 'price' => 1220000],
+         ['id' => 51, 'name' => '60 Genesis Crystals', 'nominal' => 60, 'price' => 15000],
+         ['id' => 52, 'name' => '300 Genesis Crystals', 'nominal' => 300, 'price' => 65000],
+         ['id' => 53, 'name' => '980 Genesis Crystals', 'nominal' => 980, 'price' => 195000],
+         ['id' => 54, 'name' => '1980 Genesis Crystals', 'nominal' => 1980, 'price' => 385000],
+         ['id' => 55, 'name' => '3280 Genesis Crystals', 'nominal' => 3280, 'price' => 625000],
+         ['id' => 56, 'name' => '6480 Genesis Crystals', 'nominal' => 6480, 'price' => 1220000],
      ]],
-    ['id' => 'hok', 'name' => 'Honor of Kings', 'color' => '#AE6A24', 'has_server' => true,
-     'server_label' => 'Pilih Server',
-     'servers' => [['id' => 'cn', 'name' => 'China'], ['id' => 'tw', 'name' => 'Taiwan']],
+    ['id' => 'hok', 'name' => 'Honor of Kings', 'color' => '#AE6A24', 'needs_zone_id' => false,
      'products' => [
-         ['id' => 61, 'name' => 'Points 60', 'nominal' => 60, 'price' => 12000],
-         ['id' => 62, 'name' => 'Points 300', 'nominal' => 300, 'price' => 55000],
-         ['id' => 63, 'name' => 'Points 980', 'nominal' => 980, 'price' => 175000],
-         ['id' => 64, 'name' => 'Points 1980', 'nominal' => 1980, 'price' => 350000],
+         ['id' => 61, 'name' => '60 Points', 'nominal' => 60, 'price' => 12000],
+         ['id' => 62, 'name' => '300 Points', 'nominal' => 300, 'price' => 55000],
+         ['id' => 63, 'name' => '980 Points', 'nominal' => 980, 'price' => 175000],
+         ['id' => 64, 'name' => '1980 Points', 'nominal' => 1980, 'price' => 350000],
      ]],
-    ['id' => 'valo', 'name' => 'Valorant', 'color' => '#FF4565', 'has_server' => false, 'servers' => [],
+    ['id' => 'valo', 'name' => 'Valorant', 'color' => '#FF4565', 'needs_zone_id' => false,
      'products' => [
-         ['id' => 81, 'name' => 'VP 125', 'nominal' => 125, 'price' => 25000],
-         ['id' => 82, 'name' => 'VP 375', 'nominal' => 375, 'price' => 70000],
-         ['id' => 83, 'name' => 'VP 700', 'nominal' => 700, 'price' => 125000],
-         ['id' => 84, 'name' => 'VP 1375', 'nominal' => 1375, 'price' => 240000],
-         ['id' => 85, 'name' => 'VP 2400', 'nominal' => 2400, 'price' => 410000],
-         ['id' => 86, 'name' => 'VP 5000', 'nominal' => 5000, 'price' => 830000],
+         ['id' => 81, 'name' => '125 VP', 'nominal' => 125, 'price' => 25000],
+         ['id' => 82, 'name' => '375 VP', 'nominal' => 375, 'price' => 70000],
+         ['id' => 83, 'name' => '700 VP', 'nominal' => 700, 'price' => 125000],
+         ['id' => 84, 'name' => '1375 VP', 'nominal' => 1375, 'price' => 240000],
+         ['id' => 85, 'name' => '2400 VP', 'nominal' => 2400, 'price' => 410000],
+         ['id' => 86, 'name' => '5000 VP', 'nominal' => 5000, 'price' => 830000],
      ]],
-    ['id' => 'codm', 'name' => 'Call of Duty Mobile', 'color' => '#FFD2D2', 'has_server' => false, 'servers' => [],
+    ['id' => 'codm', 'name' => 'Call of Duty Mobile', 'color' => '#FFD2D2', 'needs_zone_id' => false,
      'products' => [
-         ['id' => 71, 'name' => 'CP 80', 'nominal' => 80, 'price' => 15000],
-         ['id' => 72, 'name' => 'CP 420', 'nominal' => 420, 'price' => 75000],
-         ['id' => 73, 'name' => 'CP 880', 'nominal' => 880, 'price' => 150000],
-         ['id' => 74, 'name' => 'CP 2400', 'nominal' => 2400, 'price' => 390000],
+         ['id' => 71, 'name' => '80 CP', 'nominal' => 80, 'price' => 15000],
+         ['id' => 72, 'name' => '420 CP', 'nominal' => 420, 'price' => 75000],
+         ['id' => 73, 'name' => '880 CP', 'nominal' => 880, 'price' => 150000],
+         ['id' => 74, 'name' => '2400 CP', 'nominal' => 2400, 'price' => 390000],
      ]],
-    ['id' => 'fifa', 'name' => 'FIFA Mobile', 'color' => '#E2CC71', 'has_server' => false, 'servers' => [],
+    ['id' => 'fifa', 'name' => 'FIFA Mobile', 'color' => '#E2CC71', 'needs_zone_id' => false,
      'products' => [
-         ['id' => 91, 'name' => 'Coins 100', 'nominal' => 100, 'price' => 15000],
-         ['id' => 92, 'name' => 'Coins 500', 'nominal' => 500, 'price' => 65000],
-         ['id' => 93, 'name' => 'Coins 1000', 'nominal' => 1000, 'price' => 125000],
-         ['id' => 94, 'name' => 'Coins 2500', 'nominal' => 2500, 'price' => 295000],
+         ['id' => 91, 'name' => '100 Coins', 'nominal' => 100, 'price' => 15000],
+         ['id' => 92, 'name' => '500 Coins', 'nominal' => 500, 'price' => 65000],
+         ['id' => 93, 'name' => '1000 Coins', 'nominal' => 1000, 'price' => 125000],
+         ['id' => 94, 'name' => '2500 Coins', 'nominal' => 2500, 'price' => 295000],
      ]],
 ];
 
@@ -121,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     $game_id = $_POST['game_id'] ?? '';
     $player_id = trim($_POST['player_id'] ?? '');
-    $server_id = $_POST['server_id'] ?? '';
+    $zone_id = $_POST['zone_id'] ?? ''; // Codashop style - only for ML
     $produk_id = intval($_POST['produk_id'] ?? 0);
 
     $selectedGame = null;
@@ -142,8 +129,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if (!$selectedGame || empty($player_id)) {
         setAlert('error', 'Masukkan Player ID yang valid!');
-    } elseif ($selectedGame['has_server'] && empty($server_id)) {
-        setAlert('error', 'Pilih server terlebih dahulu!');
+    } elseif ($selectedGame['needs_zone_id'] && empty($zone_id)) {
+        setAlert('error', 'Masukkan Zone ID!');
     } elseif (!$selectedProduct) {
         setAlert('error', 'Pilih nominal yang valid!');
     } else {
@@ -155,10 +142,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $invoice = generateInvoice();
             $saldo_sebelum = $saldo;
             $saldo_sesudah = $saldo - $harga;
-            $keterangan = "Top up {$selectedGame['name']} - {$selectedProduct['name']}";
+            $keterangan = "Top up {$selectedGame['name']} - {$selectedProduct['name']}" . ($zone_id ? " (Zone: {$zone_id})" : "");
 
-            $stmt = $conn->prepare("INSERT INTO transaksi (user_id, invoice_no, jenis_transaksi, no_tujuan, server_id, customer_id, nominal, harga, biaya_admin, total_bayar, saldo_sebelum, saldo_sesudah, status, keterangan) VALUES (?, ?, 'game', ?, ?, ?, ?, ?, 0, ?, ?, ?, 'success', ?)");
-            $stmt->bind_param("issssddddds", $user_id, $invoice, $player_id, $server_id, $player_id, $selectedProduct['nominal'], $harga, $harga, $saldo_sebelum, $saldo_sesudah, $keterangan);
+            $stmt = $conn->prepare("INSERT INTO transaksi (user_id, no_invoice, jenis_transaksi, no_tujuan, customer_id, nominal, harga, biaya_admin, total_bayar, saldo_sebelum, saldo_sesudah, status, keterangan) VALUES (?, ?, 'game', ?, ?, ?, ?, 0, ?, ?, ?, 'success', ?)");
+            $stmt->bind_param("isssddddd s", $user_id, $invoice, $player_id, $zone_id ?: $player_id, $selectedProduct['nominal'], $harga, $harga, $saldo_sebelum, $saldo_sesudah, $keterangan);
 
             if ($stmt->execute()) {
                 updateSaldo($user_id, $harga, 'kurang');
@@ -295,21 +282,7 @@ require_once 'layout.php';
     color: white; font-size: 22px; flex-shrink: 0;
 }
 
-/* ── Server Buttons ── */
-.server-btn {
-    padding: 8px 14px; border-radius: 8px;
-    border: 1px solid var(--border);
-    background: white; color: var(--text-secondary);
-    font-size: 13px; font-weight: 500;
-    cursor: pointer; transition: all 0.2s ease;
-    white-space: nowrap;
-}
-.server-btn:hover { border-color: var(--primary); color: var(--primary); }
-.server-btn.active {
-    background: var(--primary); color: white;
-    border-color: var(--primary);
-}
-
+/* ── Zone ID ── */
 /* ── Product Cards ── */
 .product-card {
     background: white; border: 2px solid var(--border);
@@ -473,7 +446,7 @@ require_once 'layout.php';
     <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
     <input type="hidden" name="game_id" id="gameId" value="">
     <input type="hidden" name="produk_id" id="produkId" value="">
-    <input type="hidden" name="server_id" id="serverId" value="">
+    <input type="hidden" name="zone_id" id="zoneIdValue" value="">
 
     <!-- Search -->
     <div class="card" style="padding:16px;margin-bottom:16px;">
@@ -517,7 +490,7 @@ require_once 'layout.php';
                     data-game-id="<?= $game['id'] ?>"
                     data-game-name="<?= htmlspecialchars($game['name']) ?>"
                     data-game-color="<?= $game['color'] ?>"
-                    data-game-has-server="<?= $game['has_server'] ?>"
+                    data-game-needs-zone-id="<?= $game['needs_zone_id'] ?? false ?>"
                     style="background:<?= $game['color'] ?>15;border-color:<?= $game['color'] ?>">
                 <div class="game-icon" style="background:<?= $game['color'] ?>;width:40px;height:40px;border-radius:10px;">
                     <i class="fas fa-gamepad" style="font-size:16px;"></i>
@@ -540,12 +513,17 @@ require_once 'layout.php';
             </div>
         </div>
 
-        <!-- Server Selection (if needed) -->
-        <div id="serverSection" style="display:none;" class="mb-4">
-            <label style="display:block;font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:8px;" id="serverLabel">Pilih Server</label>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-2" id="serverOptions">
-                <!-- Populated by JS -->
-            </div>
+        <!-- Zone ID (only for ML) -->
+        <div id="zoneIdSection" style="display:none;" class="mb-4">
+            <label style="display:block;font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:8px;">
+                <i class="fas fa-id-card-alt"></i> Zone ID
+            </label>
+            <input type="text" id="zoneId" name="zone_id"
+                   class="search-input" style="padding-left:14px;"
+                   placeholder="Masukkan Zone ID...">
+            <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                *) Cara melihat: Profil → Basic Info → Zone ID
+            </p>
         </div>
 
         <!-- Player ID Input -->
@@ -603,9 +581,7 @@ require_once 'layout.php';
 const games = <?= json_encode(array_map(function($g) {
     return [
         'id' => $g['id'], 'name' => $g['name'], 'color' => $g['color'],
-        'has_server' => $g['has_server'],
-        'server_label' => $g['server_label'] ?? 'Pilih Server',
-        'servers' => $g['servers'] ?? [],
+        'needs_zone_id' => $g['needs_zone_id'] ?? false,
         'products' => array_map(function($p) {
             return ['id' => $p['id'], 'name' => $p['name'], 'price' => $p['price']];
         }, $g['products'])
@@ -639,24 +615,15 @@ function selectGame(gameId) {
     const icon = document.getElementById('selectedGameIcon');
     icon.style.background = selectedGame.color;
 
-    // Show/hide server section
-    const serverSection = document.getElementById('serverSection');
-    if (selectedGame.has_server && selectedGame.servers.length > 0) {
-        serverSection.style.display = 'block';
-        document.getElementById('serverLabel').textContent = selectedGame.server_label || 'Pilih Server';
-        const serverOptions = document.getElementById('serverOptions');
-        serverOptions.innerHTML = selectedGame.servers.map(s => `
-            <button type="button" class="server-btn"
-                    data-server-id="${s.id}"
-                    onclick="selectServer('${s.id}', '${s.name}')">
-                ${s.name}
-            </button>
-        `).join('');
-        document.getElementById('serverId').value = '';
+    // Show/hide Zone ID section (only for ML)
+    const zoneIdSection = document.getElementById('zoneIdSection');
+    if (selectedGame.needs_zone_id) {
+        zoneIdSection.style.display = 'block';
     } else {
-        serverSection.style.display = 'none';
-        document.getElementById('serverId').value = '';
+        zoneIdSection.style.display = 'none';
+        document.getElementById('zoneId').value = '';
     }
+    document.getElementById('zoneIdValue').value = '';
 
     // Reset product selection
     selectedProduct = null;
@@ -667,16 +634,6 @@ function selectGame(gameId) {
 
     // Scroll to player ID section
     playerIdSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-// ══════════ SELECT SERVER ══════════
-function selectServer(serverId, serverName) {
-    document.getElementById('serverId').value = serverId;
-    document.querySelectorAll('.server-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.dataset.serverId === serverId) btn.classList.add('active');
-    });
-    validatePlayerId();
 }
 
 // ══════════ VALIDATE PLAYER ID ══════════
@@ -731,7 +688,7 @@ function resetSelection() {
 
     document.getElementById('gameId').value = '';
     document.getElementById('produkId').value = '';
-    document.getElementById('serverId').value = '';
+    document.getElementById('zoneIdValue').value = '';
     document.getElementById('playerId').value = '';
 
     document.querySelectorAll('.game-card').forEach(card => card.classList.remove('selected'));
@@ -760,15 +717,18 @@ function formatRupiah(num) {
 document.getElementById('formGame')?.addEventListener('submit', function(e) {
     const gameId = document.getElementById('gameId').value;
     const playerId = document.getElementById('playerId').value.trim();
-    const serverId = document.getElementById('serverId').value;
+    const zoneId = document.getElementById('zoneId').value.trim();
     const produkId = document.getElementById('produkId').value;
 
     if (!gameId) { e.preventDefault(); alert('Pilih game terlebih dahulu!'); return; }
     if (!playerId || playerId.length < 3) { e.preventDefault(); alert('Masukkan Player ID yang valid!'); return; }
-    if (selectedGame?.has_server && !serverId) { e.preventDefault(); alert('Pilih server terlebih dahulu!'); return; }
+    if (selectedGame?.needs_zone_id && !zoneId) { e.preventDefault(); alert('Masukkan Zone ID!'); return; }
     if (!produkId) { e.preventDefault(); alert('Pilih nominal terlebih dahulu!'); return; }
 
-    const confirmMsg = `Konfirmasi Pembelian\n\nGame: ${selectedGame.name}\nPlayer ID: ${playerId}\nItem: ${selectedProduct.name}\nTotal: ${formatRupiah(selectedProduct.price)}\n\nLanjutkan?`;
+    // Set zone_id value
+    document.getElementById('zoneIdValue').value = zoneId;
+
+    const confirmMsg = `Konfirmasi Pembelian\n\nGame: ${selectedGame.name}\nPlayer ID: ${playerId}${zoneId ? '\nZone ID: ' + zoneId : ''}\nItem: ${selectedProduct.name}\nTotal: ${formatRupiah(selectedProduct.price)}\n\nLanjutkan?`;
     if (!confirm(confirmMsg)) { e.preventDefault(); }
 });
 </script>

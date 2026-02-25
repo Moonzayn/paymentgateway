@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $invoice = generateInvoice();
                 $saldo_sebelum = $saldo;
                 $saldo_sesudah = $saldo - $harga;
-                $stmt = $conn->prepare("INSERT INTO transaksi (user_id, produk_id, invoice_no, jenis_transaksi, no_tujuan, nominal, harga, biaya_admin, total_bayar, saldo_sebelum, saldo_sesudah, status, keterangan) VALUES (?, ?, ?, 'pulsa', ?, ?, ?, 0, ?, ?, ?, 'success', 'Pembelian pulsa berhasil')");
+                $stmt = $conn->prepare("INSERT INTO transaksi (user_id, produk_id, no_invoice, jenis_transaksi, no_tujuan, nominal, harga, biaya_admin, total_bayar, saldo_sebelum, saldo_sesudah, status, keterangan) VALUES (?, ?, ?, 'pulsa', ?, ?, ?, 0, ?, ?, ?, 'success', 'Pembelian pulsa berhasil')");
                 $stmt->bind_param("iissddddd", $user_id, $produk_id, $invoice, $no_hp, $produk['nominal'], $harga, $harga, $saldo_sebelum, $saldo_sesudah);
                 if ($stmt->execute()) {
                     updateSaldo($user_id, $harga, 'kurang');
