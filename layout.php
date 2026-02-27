@@ -363,6 +363,7 @@
         <a href="transfer.php" class="nav-item <?= ($currentPage ?? '') == 'transfer' ? 'active' : '' ?>"><i class="fas fa-exchange-alt"></i><span>Transfer</span></a>
         <a href="deposit.php" class="nav-item <?= ($currentPage ?? '') == 'deposit' ? 'active' : '' ?>"><i class="fas fa-plus-circle"></i><span>Deposit</span></a>
         <a href="riwayat.php" class="nav-item <?= ($currentPage ?? '') == 'riwayat' ? 'active' : '' ?>"><i class="fas fa-history"></i><span>Riwayat</span></a>
+        <a href="mutasi_saldo.php" class="nav-item <?= ($currentPage ?? '') == 'mutasi_saldo' ? 'active' : '' ?>"><i class="fas fa-wallet"></i><span>Mutasi Saldo</span></a>
 
         <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
         <div class="nav-label">Admin</div>
