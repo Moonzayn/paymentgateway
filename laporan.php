@@ -78,7 +78,7 @@ $stats['total_transaksi'] = $row['total'];
 $stats['total_pendapatan'] = $row['pendapatan'];
 
 // Profit calculation
-$query = "SELECT COALESCE(SUM(t.total_bayar - COALESCE(p.harga_modal * t.nominal, 0)), 0) as profit 
+$query = "SELECT COALESCE(SUM(t.total_bayar - COALESCE(p.harga_modal, 0)), 0) as profit 
           FROM transaksi t 
           LEFT JOIN produk p ON t.produk_id = p.id 
           WHERE DATE(t.created_at) BETWEEN ? AND ? AND t.status = 'success'";
