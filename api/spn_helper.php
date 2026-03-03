@@ -1,4 +1,9 @@
 <?php
+// Access Credentials: 
+// Key: V-Q1LLH3TVPRUWX1EP 
+// Token: ljh7yJ1P29jDvuzmwpaEd8ZQrxaYVk4m 
+
+// For more details, please refer to the official documentation: https://docs.vansoncash.com
 class SPNHelper {
     private $apiKey;
     private $apiToken;
@@ -6,8 +11,8 @@ class SPNHelper {
     private $callbackUrl;
 
     public function __construct($apiKey = null, $apiToken = null, $isSandbox = true) {
-        $this->apiKey = $apiKey ?: 'V-M5BJDOJFCOENVHUY';
-        $this->apiToken = $apiToken ?: 'Va0vlV1TWUOgVvSYRXOJZtZII6tjLXbL';
+        $this->apiKey = $apiKey ?: 'V-Q1LLH3TVPRUWX1EP';
+        $this->apiToken = $apiToken ?: 'ljh7yJ1P29jDvuzmwpaEd8ZQrxaYVk4m';
         $this->baseUrl = $isSandbox 
             ? 'https://api.vansoncash.com' 
             : 'https://api.vansoncash.com';
