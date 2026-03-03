@@ -203,6 +203,50 @@
         }
         .user-avatar:hover { background: var(--primary-dark); transform: scale(1.05); }
 
+        .chat-icon-btn {
+            position: relative;
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+        .chat-icon-btn:hover {
+            background: var(--primary-50);
+            color: var(--primary);
+        }
+        .chat-icon-btn .badge {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            background: #FF3B30;
+            color: white;
+            font-size: 9px;
+            font-weight: 600;
+            min-width: 16px;
+            height: 16px;
+            border-radius: 8px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+            border: 2px solid white;
+        }
+        .chat-icon-btn .badge.show {
+            display: flex;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
         /* ══════════════════════════════════════
            PAGE CONTENT
            ══════════════════════════════════════ */
@@ -354,18 +398,51 @@
         </button>
     </div>
 
+<?php
+$isSuperAdmin = (isset($_SESSION['is_super_admin']) && $_SESSION['is_super_admin'] == 'yes') || (isset($_SESSION['role']) && $_SESSION['role'] == 'superadmin');
+$isAdmin = isset($_SESSION['role']) && $_SESSION['role'] == 'admin';
+$storeRole = $_SESSION['current_store_role'] ?? null;
+$hasStore = isset($_SESSION['current_store_id']) && $_SESSION['current_store_id'];
+$storeName = $_SESSION['current_store_name'] ?? '';
+?>
+
     <nav class="sidebar-nav">
+        <?php if ($hasStore && ($storeRole == 'owner' || $storeRole == 'kasir_pos' || $storeRole == 'kasir_all')): ?>
+     
+        
         <a href="index.php" class="nav-item <?= ($currentPage ?? '') == 'index' ? 'active' : '' ?>"><i class="fas fa-home"></i><span>Dashboard</span></a>
+           <div class="nav-label"><?= htmlspecialchars($storeName) ?></div>
+        <a href="pos.php" class="nav-item <?= ($currentPage ?? '') == 'pos' ? 'active' : '' ?>"><i class="fas fa-cash-register"></i><span>POS Kasir</span></a>
+        <?php endif; ?>
+        <?php if ($isSuperAdmin || $isAdmin || $storeRole == 'owner' || ($storeRole && in_array($storeRole, ['kasir_ppob', 'kasir_all']))): ?>
         <a href="pulsa.php" class="nav-item <?= ($currentPage ?? '') == 'pulsa' ? 'active' : '' ?>"><i class="fas fa-mobile-alt"></i><span>Isi Pulsa</span></a>
         <a href="kuota.php" class="nav-item <?= ($currentPage ?? '') == 'kuota' ? 'active' : '' ?>"><i class="fas fa-wifi"></i><span>Paket Data</span></a>
         <a href="listrik.php" class="nav-item <?= ($currentPage ?? '') == 'listrik' ? 'active' : '' ?>"><i class="fas fa-bolt"></i><span>Token Listrik</span></a>
         <a href="game.php" class="nav-item <?= ($currentPage ?? '') == 'game' ? 'active' : '' ?>"><i class="fas fa-gamepad"></i><span>Top Up Game</span></a>
+        <?php endif; ?>
+        
         <a href="transfer.php" class="nav-item <?= ($currentPage ?? '') == 'transfer' ? 'active' : '' ?>"><i class="fas fa-exchange-alt"></i><span>Transfer</span></a>
         <a href="deposit.php" class="nav-item <?= ($currentPage ?? '') == 'deposit' ? 'active' : '' ?>"><i class="fas fa-plus-circle"></i><span>Deposit</span></a>
         <a href="riwayat.php" class="nav-item <?= ($currentPage ?? '') == 'riwayat' ? 'active' : '' ?>"><i class="fas fa-history"></i><span>Riwayat</span></a>
         <a href="mutasi_saldo.php" class="nav-item <?= ($currentPage ?? '') == 'mutasi_saldo' ? 'active' : '' ?>"><i class="fas fa-wallet"></i><span>Mutasi Saldo</span></a>
 
-        <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
+        <?php if ($isSuperAdmin): ?>
+        <div class="nav-label">Super Admin</div>
+        <a href="kelola_store.php" class="nav-item <?= ($currentPage ?? '') == 'kelola_store' ? 'active' : '' ?>"><i class="fas fa-building"></i><span>Kelola Store</span></a>
+        <a href="kelola_user.php" class="nav-item <?= ($currentPage ?? '') == 'kelola_user' ? 'active' : '' ?>"><i class="fas fa-users"></i><span>Kelola User</span></a>
+        <a href="kelola_produk.php" class="nav-item <?= ($currentPage ?? '') == 'kelola_produk' ? 'active' : '' ?>"><i class="fas fa-box"></i><span>Kelola Produk</span></a>
+        <a href="laporan.php" class="nav-item <?= ($currentPage ?? '') == 'laporan' ? 'active' : '' ?>"><i class="fas fa-chart-bar"></i><span>Laporan</span></a>
+        <?php endif; ?>
+
+        <?php if ($storeRole == 'owner'): ?>
+        <div class="nav-label">Toko Saya</div>
+        <a href="laporan_pos.php" class="nav-item <?= ($currentPage ?? '') == 'laporan_pos' ? 'active' : '' ?>"><i class="fas fa-chart-line"></i><span>Laporan POS</span></a>
+        <a href="kelola_produk_pos.php" class="nav-item <?= ($currentPage ?? '') == 'kelola_produk_pos' ? 'active' : '' ?>"><i class="fas fa-boxes"></i><span>Kelola Produk POS</span></a>
+        <a href="kelola_kasir.php" class="nav-item <?= ($currentPage ?? '') == 'kelola_kasir' ? 'active' : '' ?>"><i class="fas fa-user-cog"></i><span>Kelola Kasir</span></a>
+        <?php endif; ?>
+
+        
+        <?php if ($isAdmin && !$isSuperAdmin): ?>
         <div class="nav-label">Admin</div>
         <a href="kelola_user.php" class="nav-item <?= ($currentPage ?? '') == 'kelola_user' ? 'active' : '' ?>"><i class="fas fa-users"></i><span>Kelola User</span></a>
         <a href="kelola_produk.php" class="nav-item <?= ($currentPage ?? '') == 'kelola_produk' ? 'active' : '' ?>"><i class="fas fa-box"></i><span>Kelola Produk</span></a>
@@ -401,6 +478,12 @@
         </div>
 
         <div class="navbar-right">
+            <?php if ($isSuperAdmin): ?>
+            <button class="chat-icon-btn" id="adminChatToggle" title="Live Chat">
+                <i class="fas fa-comments"></i>
+                <span class="badge" id="adminChatBadge">0</span>
+            </button>
+            <?php endif; ?>
             <div class="balance-chip" title="Saldo Anda">
                 <span class="chip-icon"><i class="fas fa-wallet"></i></span>
                 <span><?= rupiah($_SESSION['saldo'] ?? 0) ?></span>
