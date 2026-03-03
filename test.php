@@ -1,4 +1,4 @@
 <?php
 
 
-echo ="kamu berhasil";
+echo "kamu berhasil";
