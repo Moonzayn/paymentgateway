@@ -1,0 +1,56 @@
+PPOB EXPRESS - SEMUA FITUR
+==========================
+
+--- USER & AUTH ---
+- Kelola User         : kelola_user.php
+- Login/Logout        : login.php, logout.php
+- Password Policy     : password_policy.php
+- IP Whitelist        : ip_whitelist.php
+
+--- TRANSAKSI UTAMA ---
+- Deposit             : deposit.php, proses_deposit.php
+- Pulsa               : pulsa.php
+- Token Listrik       : listrik.php
+- Voucher Game        : game.php
+- Transfer Saldo      : transfer.php
+
+--- POS (Point of Sale) ---
+- POS                 : pos.php
+- Cetak Struk         : pos_cetak.php
+- Kelola Kasir        : kelola_kasir.php
+- Kelola Store        : kelola_store.php
+- Kelola Produk POS   : kelola_produk_pos.php
+- Laporan POS         : laporan_pos.php
+- QRIS Payment        : api/pos_qris_*.php
+
+--- CHAT SYSTEM ---
+- Chat Widget         : chat_widget.php
+- Chat Admin          : chat_admin_widget.php
+- API Chat            : api/chat_*.php
+
+--- LAPORAN & AUDIT ---
+- Laporan             : laporan.php
+- Riwayat             : riwayat.php
+- Mutasi Saldo        : mutasi_saldo.php
+- Audit Log           : audit.php
+
+--- KELOLA DATA ---
+- Kelola Produk       : kelola_produk.php
+- Kuota               : kuota.php
+
+--- ADMIN & SYSTEM ---
+- Dashboard           : index.php
+- Layout              : layout.php, layout_footer.php
+- Konfigurasi         : config.php
+- Backup              : backup.php
+- Setup/Install       : setup*.php, create_superadmin.php
+- Migration           : run_migration.php
+
+--- DEBUG & FIX ---
+- debug_*.php          : Debug session, user, data, laporan, pos
+
+--- API ---
+- api/spn_helper.php
+- api/chat_*.php
+- api/pos_*.php
+# Auto deploy test
