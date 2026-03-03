@@ -99,5 +99,17 @@ document.querySelectorAll('.nav-item').forEach(item => {
     });
 });
 </script>
+
+<?php 
+$isSuperAdmin = (isset($_SESSION['is_super_admin']) && $_SESSION['is_super_admin'] == 'yes') || (isset($_SESSION['role']) && $_SESSION['role'] == 'superadmin');
+$isAdmin = isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
+$isOwnerOrKasir = isset($_SESSION['role_owner']) && $_SESSION['role_owner'];
+
+if (!$isSuperAdmin && !$isAdmin): ?>
+<?php include 'chat_widget.php'; ?>
+<?php elseif ($isSuperAdmin): ?>
+<?php include 'chat_admin_widget.php'; ?>
+<?php endif; ?>
+
 </body>
 </html>

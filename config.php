@@ -185,6 +185,42 @@ function getAlert() {
     return null;
 }
 
+function initStoreSession($user_id) {
+    $conn = koneksi();
+    
+    $isSuperAdmin = false;
+    $stmt = $conn->prepare("SELECT is_super_admin FROM users WHERE id = ?");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($row = $result->fetch_assoc()) {
+        $isSuperAdmin = $row['is_super_admin'] == 'yes';
+    }
+    $_SESSION['is_super_admin'] = $isSuperAdmin ? 'yes' : 'no';
+    
+    if ($isSuperAdmin) {
+        return;
+    }
+    
+    $stmt = $conn->prepare("
+        SELECT su.store_id, su.role, s.nama_toko 
+        FROM store_users su 
+        JOIN stores s ON su.store_id = s.id 
+        WHERE su.user_id = ? AND s.status = 'active'
+        ORDER BY su.created_at ASC
+        LIMIT 1
+    ");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($row = $result->fetch_assoc()) {
+        $_SESSION['current_store_id'] = $row['store_id'];
+        $_SESSION['current_store_name'] = $row['nama_toko'];
+        $_SESSION['current_store_role'] = $row['role'];
+    }
+}
+
 // ===========================================
 // RATE LIMITING - Prevent API Abuse
 // ===========================================

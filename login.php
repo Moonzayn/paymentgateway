@@ -57,6 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $_SESSION['created'] = time();
                     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
                     
+                    initStoreSession($user['id']);
+                    
                     // Log successful login
                     error_log("[" . date('Y-m-d H:i:s') . "] LOGIN SUCCESS: User {$username} from IP " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
                     
