@@ -35,8 +35,12 @@ class TOTPHelper {
     public function getQRCodeImageUrl($secret, $email, $issuer = 'PPOB Express') {
         $otpauth = $this->getQRCodeUrl($secret, $email, $issuer);
 
+        // Auto-detect path - check if payment folder exists
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+        $path = strpos($requestUri, '/payment/') !== false ? '/payment' : '';
+
         // Return URL to be fetched - we'll generate it on the fly
-        return '/payment/api/qr_fetch.php?data=' . urlencode($otpauth);
+        return $path . '/api/qr_fetch.php?data=' . urlencode($otpauth);
     }
 
     public function getQRCodeImageUrlDirect($secret, $email, $issuer = 'PPOB Express') {

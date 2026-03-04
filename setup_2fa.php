@@ -278,7 +278,14 @@ let timerInterval = null;
 let otpauthUrl = '';
 
 function initSetup() {
-    var apiPath = '/payment/api/2fa_setup.php';
+    // Auto-detect correct path based on current location
+    var pathParts = window.location.pathname.split('/');
+    var apiPath = '/api/2fa_setup.php';
+
+    // If payment folder exists in URL, use payment/api
+    if (pathParts.includes('payment')) {
+        apiPath = '/payment/api/2fa_setup.php';
+    }
 
     fetch(apiPath + '?action=init')
         .then(function(res) { return res.json(); })
