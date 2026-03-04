@@ -185,7 +185,7 @@ include 'layout.php';
                     <span style="background: var(--primary); color: white; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-right: 0.5rem;">2</span>
                     Scan QR Code
                 </h3>
-                <div id="qrCanvas" style="margin: 1rem 0;display:flex;justify-content:center;"></div>
+                <img id="qrImage" src="" alt="QR Code" style="margin:1rem auto;display:block;max-width:200px;border:2px solid #333;">
                 <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem;">
                     Buka Google Authenticator dan scan QR code di atas
                 </p>
@@ -272,38 +272,42 @@ include 'layout.php';
 
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 let secret = '';
 let timerInterval = null;
 let otpauthUrl = '';
 
 function initSetup() {
-    fetch('/payment/api/2fa_setup.php?action=init')
-        .then(res => res.json())
-        .then(data => {
+    var apiPath = '/payment/api/2fa_setup.php';
+
+    fetch(apiPath + '?action=init')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
             if (data.success) {
                 document.getElementById('qrSection').style.display = 'block';
                 document.getElementById('secretDisplay').textContent = data.secret;
                 secret = data.secret;
                 otpauthUrl = data.otpauth || 'otpauth://totp/PPOB Express:user@ppobexpress?secret=' + secret + '&issuer=PPOB Express';
 
-                // Generate QR using qrcode.js library
-                var qrContainer = document.getElementById('qrCanvas');
-                qrContainer.innerHTML = '';
-                new QRCode(qrContainer, {
-                    text: otpauthUrl,
-                    width: 200,
-                    height: 200,
-                    colorDark : "#000000",
-                    colorLight : "#ffffff",
-                    correctLevel : QRCode.CorrectLevel.L
-                });
+                // Use img tag with qr_url from API (PHP generates QR)
+                var qrImg = document.getElementById('qrImage');
+                if (qrImg) {
+                    qrImg.src = data.qr_url;
+                    qrImg.onerror = function() {
+                        // Fallback: show manual entry
+                        this.style.display = 'none';
+                        document.getElementById('secretDisplay').innerHTML = '<span style="color:red">QR Gagal Load!</span><br>Secret: ' + secret;
+                    };
+                }
 
                 startTimer();
             } else {
                 alert(data.message);
             }
+        })
+        .catch(function(err) {
+            console.error(err);
+            alert('Gagal mengambil data. Refresh halaman dan coba lagi.');
         });
 }
 
