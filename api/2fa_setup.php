@@ -217,8 +217,8 @@ switch ($action) {
             $stmt->execute();
         }
 
-        // Disable 2FA
-        $stmt = $conn->prepare("UPDATE user_2fa SET enabled = 'no', secret_key = NULL, backup_codes = NULL, enabled_at = NULL WHERE user_id = ?");
+        // Disable 2FA - delete the record instead of setting NULL
+        $stmt = $conn->prepare("DELETE FROM user_2fa WHERE user_id = ?");
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
 
