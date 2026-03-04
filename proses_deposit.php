@@ -7,8 +7,11 @@
 require_once 'config.php';
 cekLogin();
 
-// Check if admin
-if (!isset($_SESSION['role']) || $_SESSION['role'] != 'admin') {
+// Check if superadmin (only superadmin can approve/reject deposits)
+$isSuperAdmin = isset($_SESSION['is_super_admin']) && $_SESSION['is_super_admin'] == 'yes';
+
+if (!$isSuperAdmin) {
+    setAlert('error', 'Hanya Super Admin yang dapat memproses deposit!');
     header("Location: index.php");
     exit;
 }

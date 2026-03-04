@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mysql:*)",
+      "Bash(curl:*)",
+      "Bash(php:*)",
+      "WebFetch(domain:localhost)"
+    ]
+  }
+}

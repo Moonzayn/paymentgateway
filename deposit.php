@@ -136,8 +136,11 @@ $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $riwayatDeposit = $stmt->get_result();
 
-// Ambil semua deposit untuk admin
-if ($role == 'admin') {
+// Cek apakah superadmin
+$isSuperAdmin = isset($_SESSION['is_super_admin']) && $_SESSION['is_super_admin'] == 'yes';
+
+// Ambil semua deposit untuk admin/superadmin
+if ($role == 'admin' || $isSuperAdmin) {
     $allDepositStmt = $conn->prepare("SELECT d.*, u.nama_lengkap FROM deposit d JOIN users u ON d.user_id = u.id ORDER BY d.created_at DESC");
     $allDepositStmt->execute();
     $allDeposit = $allDepositStmt->get_result();
@@ -290,12 +293,12 @@ include 'layout.php';
 </div>
 <?php endif; ?>
 
-<?php if ($role == 'admin'): ?>
+<?php if ($role == 'admin' || $isSuperAdmin): ?>
 <!-- Admin Panel - Pending Deposits -->
 <div class="card p-6 mb-6 delay-100" style="animation: slideIn 0.3s ease;">
     <div class="flex items-center justify-between mb-6">
-        <h3 class="text-lg font-semibold text-gray-900">Deposit Menunggu Verifikasi</h3>
-        <span class="text-sm text-gray-500">Admin Panel</span>
+        <h3 class="text-lg font-semibold text-gray-900"><?= $isSuperAdmin ? 'Approval Deposit (Super Admin)' : 'Daftar Deposit' ?></h3>
+        <span class="text-sm text-gray-500"><?= $isSuperAdmin ? 'Super Admin' : 'Admin Panel' ?></span>
     </div>
     
     <?php if ($allDeposit && $allDeposit->num_rows > 0): ?>
@@ -326,7 +329,7 @@ include 'layout.php';
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-500"><?= date('d/m/Y H:i', strtotime($dep['created_at'])) ?></td>
                     <td class="px-4 py-3">
-                        <?php if ($dep['status'] == 'pending'): ?>
+                        <?php if ($dep['status'] == 'pending' && $isSuperAdmin): ?>
                         <div class="flex gap-2">
                             <form method="POST" action="proses_deposit.php" style="display: inline;">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">

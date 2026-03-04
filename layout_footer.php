@@ -100,6 +100,9 @@ document.querySelectorAll('.nav-item').forEach(item => {
 });
 </script>
 
+<!-- Auto Refresh Saldo & Dark Mode -->
+<script src="/payment/assets/js/auto_refresh.js"></script>
+
 <?php 
 $isSuperAdmin = (isset($_SESSION['is_super_admin']) && $_SESSION['is_super_admin'] == 'yes') || (isset($_SESSION['role']) && $_SESSION['role'] == 'superadmin');
 $isAdmin = isset($_SESSION['role']) && $_SESSION['role'] === 'admin';

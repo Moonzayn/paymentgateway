@@ -448,6 +448,10 @@ $storeName = $_SESSION['current_store_name'] ?? '';
         <a href="kelola_produk.php" class="nav-item <?= ($currentPage ?? '') == 'kelola_produk' ? 'active' : '' ?>"><i class="fas fa-box"></i><span>Kelola Produk</span></a>
         <a href="laporan.php" class="nav-item <?= ($currentPage ?? '') == 'laporan' ? 'active' : '' ?>"><i class="fas fa-chart-bar"></i><span>Laporan</span></a>
         <?php endif; ?>
+
+        <!-- Settings Section -->
+        <div class="nav-label">Pengaturan</div>
+        <a href="setup_2fa.php" class="nav-item <?= ($currentPage ?? '') == 'setup_2fa' ? 'active' : '' ?>"><i class="fas fa-shield-alt"></i><span>2FA Security</span></a>
     </nav>
 
     <div class="sidebar-footer">

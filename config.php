@@ -10,7 +10,9 @@ if (session_status() === PHP_SESSION_NONE) {
     );
 
     if (PHP_VERSION_ID >= 70300) {
-        ini_set('session.cookie_samesite', 'Strict');
+        // Use Lax for development, Strict for production
+        $is_dev = ($_SERVER['HTTP_HOST'] ?? '') === 'localhost' || strpos($_SERVER['HTTP_HOST'] ?? '', '127.0.0.1') !== false;
+        ini_set('session.cookie_samesite', $is_dev ? 'Lax' : 'Strict');
     }
 
     ini_set('session.use_strict_mode', '1');
@@ -108,6 +110,13 @@ function clearLoginAttempts($identifier) {
 
 // Cek Login
 function cekLogin() {
+    // Check if user is in 2FA required setup flow
+    if (!isset($_SESSION['user_id']) && isset($_SESSION['2fa_required_user_id'])) {
+        header("Location: setup_2fa.php?required=1");
+        exit;
+    }
+
+    // Normal login check
     if (!isset($_SESSION['user_id'])) {
         header("Location: login.php");
         exit;
