@@ -432,9 +432,9 @@ if (isset($_GET['2fa_setup']) && $_GET['2fa_setup'] == 1 && !$show2FA) {
                 <div class="mt-6 pt-6 border-t border-gray-200 text-center">
                     <p class="text-sm text-gray-600">
                         Belum punya akun?
-                        <a href="register.php" class="font-semibold text-blue-600 hover:text-blue-800 transition">
-                            Daftar akun baru
-                        </a>
+                        <span class="font-semibold text-blue-600">
+                            Hubungi admin untuk daftar
+                        </span>
                     </p>
                 </div>
                 <?php endif; ?>

@@ -103,7 +103,7 @@ document.querySelectorAll('.nav-item').forEach(item => {
 <!-- Auto Refresh Saldo & Dark Mode -->
 <script src="/payment/assets/js/auto_refresh.js"></script>
 
-<?php 
+<?php
 $isSuperAdmin = (isset($_SESSION['is_super_admin']) && $_SESSION['is_super_admin'] == 'yes') || (isset($_SESSION['role']) && $_SESSION['role'] == 'superadmin');
 $isAdmin = isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
 $isOwnerOrKasir = isset($_SESSION['role_owner']) && $_SESSION['role_owner'];
@@ -113,6 +113,51 @@ if (!$isSuperAdmin && !$isAdmin): ?>
 <?php elseif ($isSuperAdmin): ?>
 <?php include 'chat_admin_widget.php'; ?>
 <?php endif; ?>
+
+<!-- PWA Service Worker -->
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js')
+            .then(function(registration) {
+                console.log('SW registered:', registration.scope);
+            })
+            .catch(function(error) {
+                console.log('SW registration failed:', error);
+            });
+    });
+}
+
+// PWA Install Prompt
+let deferredPrompt;
+const installBanner = document.getElementById('installBanner');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (installBanner) {
+        installBanner.style.display = 'flex';
+    }
+});
+
+function installApp() {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+            deferredPrompt = null;
+            if (installBanner) {
+                installBanner.style.display = 'none';
+            }
+        });
+    }
+}
+
+function dismissBanner() {
+    if (installBanner) {
+        installBanner.style.display = 'none';
+    }
+}
+</script>
 
 </body>
 </html>
