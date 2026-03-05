@@ -22,6 +22,7 @@ $stmt = $conn->query("
 
 $conversations = [];
 $total_unread = 0;
+$display_name = '';
 
 while ($row = $stmt->fetch_assoc()) {
     $room_id = $row['room_id'];
@@ -32,15 +33,15 @@ while ($row = $stmt->fetch_assoc()) {
 
     if ($room_id) {
         $user_id = str_replace('user_', '', $room_id);
-        $userStmt = $conn->prepare("SELECT nama_lengkap FROM users WHERE id = ?");
+        $userStmt = $conn->prepare("SELECT username, nama_lengkap FROM users WHERE id = ?");
         $userStmt->bind_param("i", $user_id);
         $userStmt->execute();
         $userResult = $userStmt->get_result();
+        $display_name = 'Unknown User';
         if ($userResult->num_rows > 0) {
             $user = $userResult->fetch_assoc();
-            $user_name = $user['nama_lengkap'];
+            $display_name = $user['username'];
         }
-        $user_name .= ' (Member)';
         
         $msgStmt = $conn->prepare("SELECT message, created_at FROM chat_messages WHERE room_id = ? ORDER BY created_at DESC LIMIT 1");
         $msgStmt->bind_param("s", $room_id);
@@ -48,13 +49,16 @@ while ($row = $stmt->fetch_assoc()) {
         $unreadStmt = $conn->prepare("SELECT COUNT(*) as cnt FROM chat_messages WHERE room_id = ? AND is_read = 0 AND sender_role != 'superadmin'");
         $unreadStmt->bind_param("s", $room_id);
     } elseif ($store_id) {
-        $storeStmt = $conn->prepare("SELECT nama_toko FROM stores WHERE id = ?");
+        $storeStmt = $conn->prepare("SELECT s.nama_toko, u.username FROM stores s LEFT JOIN store_users su ON s.id = su.store_id LEFT JOIN users u ON su.user_id = u.id WHERE s.id = ?");
         $storeStmt->bind_param("i", $store_id);
         $storeStmt->execute();
         $storeResult = $storeStmt->get_result();
+        $display_name = 'Toko';
         if ($storeResult->num_rows > 0) {
             $store = $storeResult->fetch_assoc();
-            $user_name = $store['nama_toko'];
+            $store_name = $store['nama_toko'];
+            $username = $store['username'] ?? '';
+            $display_name = $username ? "$username - $store_name" : $store_name;
         }
         
         $msgStmt = $conn->prepare("SELECT message, created_at FROM chat_messages WHERE store_id = ? ORDER BY created_at DESC LIMIT 1");
@@ -86,7 +90,7 @@ while ($row = $stmt->fetch_assoc()) {
         'room_id' => $room_id,
         'store_id' => $store_id,
         'user_id' => $user_id,
-        'user_name' => $user_name,
+        'user_name' => $display_name,
         'last_message' => $last_message,
         'last_time' => $last_time,
         'unread' => $unread

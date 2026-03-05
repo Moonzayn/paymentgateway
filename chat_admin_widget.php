@@ -493,7 +493,8 @@
         const adminChatBadge = document.getElementById('adminChatBadge');
         const totalUnread = document.getElementById('totalUnread');
 
-        let currentStoreId = null;
+        let currentUserId = null;
+        let currentRoomId = null;
         let lastMessageId = 0;
         let pollingInterval = null;
         let conversationsPollingInterval = null;
@@ -510,7 +511,8 @@
             chatPanel.classList.remove('show');
             chatView.classList.remove('show');
             conversationList.classList.remove('hidden');
-            currentStoreId = null;
+            currentUserId = null;
+            currentRoomId = null;
             stopConversationsPolling();
             stopPolling();
         }
@@ -522,7 +524,8 @@
         chatViewBack.addEventListener('click', () => {
             chatView.classList.remove('show');
             conversationList.classList.remove('hidden');
-            currentStoreId = null;
+            currentUserId = null;
+            currentRoomId = null;
             stopPolling();
             loadConversations();
             startConversationsPolling();
@@ -574,16 +577,17 @@
             conversations.forEach(conv => {
                 const item = document.createElement('div');
                 item.className = 'conversation-item';
-                item.onclick = () => openConversation(conv.store_id, conv.nama_toko);
+                item.onclick = () => openConversation(conv.room_id, conv.user_id, conv.user_name);
 
-                const initial = conv.nama_toko ? conv.nama_toko.charAt(0).toUpperCase() : 'T';
+                const name = conv.user_name || 'User';
+                const initial = name.charAt(0).toUpperCase();
                 const lastMsg = conv.last_message || 'Belum ada pesan';
                 const time = conv.last_time ? formatTime(conv.last_time) : '';
 
                 item.innerHTML = `
                     <div class="store-avatar">${initial}</div>
                     <div class="conversation-info">
-                        <div class="store-name">${conv.nama_toko || 'Toko'}</div>
+                        <div class="store-name">${name}</div>
                         <div class="last-message">${lastMsg}</div>
                     </div>
                     <div style="text-align: right;">
@@ -607,10 +611,11 @@
             return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
         }
 
-        function openConversation(storeId, storeName) {
-            currentStoreId = storeId;
-            chatStoreAvatar.textContent = storeName.charAt(0).toUpperCase();
-            chatStoreName.textContent = storeName;
+        function openConversation(roomId, userId, userName) {
+            currentUserId = userId;
+            currentRoomId = roomId;
+            chatStoreAvatar.textContent = userName.charAt(0).toUpperCase();
+            chatStoreName.textContent = userName;
 
             // Hide conversation list, show chat view
             conversationList.classList.add('hidden');
@@ -625,15 +630,10 @@
         }
 
         function loadMessages() {
-            // Allow loading for null/0 store_id (users without store)
-            if (currentStoreId === undefined || currentStoreId === null) {
-                currentStoreId = '';
-            }
-
             fetch('api/chat_get.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'store_id=' + (currentStoreId || '') + '&last_id=' + lastMessageId
+                body: 'user_id=' + (currentUserId || '') + '&last_id=' + lastMessageId
             })
             .then(res => res.json())
             .then(data => {
@@ -676,16 +676,13 @@
             const message = chatInputView.value.trim();
             if (!message) return;
 
-            // Allow sending even if store_id is null/0 (for users without store)
-            const storeIdParam = (currentStoreId === null || currentStoreId === undefined || currentStoreId === 0) ? '' : currentStoreId;
-
             chatSendView.disabled = true;
             chatInputView.value = '';
 
             fetch('api/chat_send.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'message=' + encodeURIComponent(message) + '&store_id=' + storeIdParam
+                body: 'message=' + encodeURIComponent(message) + '&user_id=' + (currentUserId || '')
             })
             .then(res => res.json())
             .then(data => {
