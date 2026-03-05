@@ -623,7 +623,7 @@
             lastMessageId = 0;
 
             loadMessages();
-            markAsRead(storeId);
+            markAsRead();
             startPolling();
 
             stopConversationsPolling();
@@ -697,14 +697,11 @@
             });
         }
 
-        function markAsRead(storeId) {
-            // Handle null/0 store_id
-            const storeIdParam = (storeId === null || storeId === undefined || storeId === 0) ? '' : storeId;
-
+        function markAsRead() {
             fetch('api/chat_mark_read.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'store_id=' + storeIdParam
+                body: 'user_id=' + (currentUserId || '')
             })
             .then(res => res.json())
             .then(data => {
