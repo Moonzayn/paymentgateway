@@ -596,10 +596,24 @@ function installApp() {
                         body: 'code=' + encodeURIComponent(code)
                     })
                     .then(res => {
+                        if (res.redirected || res.status === 302) {
+                            window.location.href = res.url || 'index.php';
+                            return Promise.reject('redirected');
+                        }
                         if (!res.ok) {
                             throw new Error('HTTP error ' + res.status);
                         }
-                        return res.json();
+                        return res.text().then(text => {
+                            try {
+                                return JSON.parse(text);
+                            } catch (e) {
+                                if (res.status === 200 || text.includes('success')) {
+                                    window.location.href = 'index.php';
+                                    return Promise.reject('success');
+                                }
+                                throw new Error('Invalid JSON: ' + text.substring(0, 100));
+                            }
+                        });
                     })
                     .then(data => {
                         if (data.success) {
@@ -616,6 +630,7 @@ function installApp() {
                         }
                     })
                     .catch(err => {
+                        if (err === 'redirected' || err === 'success') return;
                         console.error('2FA Verify Error:', err);
                         alert('Terjadi kesalahan: ' + err.message + '. Silakan coba lagi.');
                     })
