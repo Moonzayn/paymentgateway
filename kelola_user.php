@@ -1635,7 +1635,7 @@ function validatePassword() {
         return false;
     }
     
-    return confirm('Anda yakin ingin reset password user ini?');
+    return true; // Skip confirmation
 }
 
 // Format Rupiah helper
