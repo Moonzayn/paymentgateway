@@ -1293,7 +1293,7 @@ select.form-control {
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <form method="POST" action="" onsubmit="this.querySelector('button[type=\'submit\']').disabled = true;">
+                <form method="POST" action="" onsubmit="const btn=this.querySelector('button[type=\'submit\']'); if(btn.disabled){return false;} btn.disabled=true; btn.innerHTML='<i class=\'fas fa-spinner fa-spin\'></i> Menyimpan...';">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <input type="hidden" name="action" value="add">
                     <input type="hidden" name="form_token" value="<?= htmlspecialchars($_SESSION['form_token'] ?? '') ?>">
