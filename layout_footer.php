@@ -163,6 +163,97 @@ function dismissBanner() {
 function dismissPwa() {
     dismissBanner();
 }
+
+// Profile Dropdown
+function toggleProfileMenu() {
+    const dropdown = document.getElementById('profileDropdown');
+    const notifDropdown = document.getElementById('notifDropdown');
+    if (notifDropdown) notifDropdown.classList.add('hidden');
+    dropdown.classList.toggle('hidden');
+}
+
+// Notifications
+function toggleNotifications() {
+    const dropdown = document.getElementById('notifDropdown');
+    const profileDropdown = document.getElementById('profileDropdown');
+    if (profileDropdown) profileDropdown.classList.add('hidden');
+    dropdown.classList.toggle('hidden');
+    loadNotifications();
+}
+
+function loadNotifications() {
+    const list = document.getElementById('notifList');
+    if (!list) return;
+
+    // Fetch notifications
+    fetch('/api/get_notifications.php')
+        .then(r => r.json())
+        .then(data => {
+            if (data.notifications && data.notifications.length > 0) {
+                let html = '';
+                data.notifications.forEach(n => {
+                    html += `<div class="p-2 border-b hover:bg-gray-50 cursor-pointer ${n.is_read === 'no' ? 'bg-blue-50' : ''}" onclick="handleNotifClick(${n.id}, '${n.type}')">
+                        <div class="flex items-start gap-2">
+                            <div class="w-8 h-8 rounded-full ${n.type === 'deposit' ? 'bg-green-100 text-green-600' : n.type === 'chat' ? 'bg-blue-100 text-blue-600' : 'bg-yellow-100 text-yellow-600'} flex items-center justify-center">
+                                <i class="fas fa-${n.type === 'deposit' ? 'money-bill' : n.type === 'chat' ? 'comment' : 'exclamation'}"></i>
+                            </div>
+                            <div class="flex-1">
+                                <div class="text-sm">${n.title}</div>
+                                <div class="text-xs text-gray-500">${n.message}</div>
+                                <div class="text-xs text-gray-400">${n.time_ago}</div>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                list.innerHTML = html;
+            } else {
+                list.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-bell-slash text-3xl mb-2"></i><div>Tidak ada notifikasi</div></div>';
+            }
+
+            // Update badge
+            const badge = document.getElementById('notifBadge');
+            if (data.unread > 0 && badge) {
+                badge.textContent = data.unread > 9 ? '9+' : data.unread;
+                badge.style.display = 'flex';
+            } else if (badge) {
+                badge.style.display = 'none';
+            }
+        })
+        .catch(() => {
+            list.innerHTML = '<div class="text-center text-gray-500 py-8">Gagal load notifikasi</div>';
+        });
+}
+
+function handleNotifClick(id, type) {
+    // Mark as read
+    fetch('/api/mark_notif_read.php?id=' + id);
+    // Redirect based on type
+    if (type === 'deposit') {
+        window.location.href = 'deposit.php';
+    } else if (type === 'chat') {
+        window.location.href = 'index.php?chat=1';
+    }
+}
+
+function markAllRead() {
+    fetch('/api/mark_all_notif_read.php');
+    loadNotifications();
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+    const profileDropdown = document.getElementById('profileDropdown');
+    const notifDropdown = document.getElementById('notifDropdown');
+    const avatarBtn = document.querySelector('.user-avatar');
+    const notifBtn = document.querySelector('[onclick="toggleNotifications()"]');
+
+    if (profileDropdown && !profileDropdown.contains(e.target) && !avatarBtn?.contains(e.target)) {
+        profileDropdown.classList.add('hidden');
+    }
+    if (notifDropdown && !notifDropdown.contains(e.target) && !notifBtn?.contains(e.target)) {
+        notifDropdown.classList.add('hidden');
+    }
+});
 </script>
 
 </body>

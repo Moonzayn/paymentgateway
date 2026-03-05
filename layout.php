@@ -545,9 +545,59 @@ $storeName = $_SESSION['current_store_name'] ?? '';
                 <span class="chip-icon"><i class="fas fa-wallet"></i></span>
                 <span><?= rupiah($_SESSION['saldo'] ?? 0) ?></span>
             </div>
-            <button class="user-avatar" title="<?= htmlspecialchars($_SESSION['nama_lengkap'] ?? 'User') ?>">
-                <?= strtoupper(substr($_SESSION['nama_lengkap'] ?? 'U', 0, 1)) ?>
-            </button>
+            <!-- Notification Bell -->
+            <?php if ($isSuperAdmin || $isAdmin): ?>
+            <div class="relative">
+                <button onclick="toggleNotifications()" class="relative p-2 rounded-lg hover:bg-gray-100 transition">
+                    <i class="fas fa-bell text-gray-600 text-lg"></i>
+                    <span id="notifBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center" style="display:none;">0</span>
+                </button>
+                <div id="notifDropdown" class="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg border z-50 hidden" style="min-height:200px;max-height:400px;overflow-y:auto;">
+                    <div class="p-3 border-b font-semibold flex justify-between items-center">
+                        <span>Notifications</span>
+                        <button onclick="markAllRead()" class="text-xs text-blue-600">Mark all read</button>
+                    </div>
+                    <div id="notifList" class="p-2">
+                        <div class="text-center text-gray-500 py-8">Loading...</div>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <!-- User Avatar Dropdown -->
+            <div class="relative">
+                <button onclick="toggleProfileMenu()" class="user-avatar">
+                    <?= strtoupper(substr($_SESSION['nama_lengkap'] ?? 'U', 0, 1)) ?>
+                </button>
+                <div id="profileDropdown" class="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border z-50 hidden">
+                    <div class="p-3 border-b">
+                        <div class="font-semibold"><?= htmlspecialchars($_SESSION['nama_lengkap'] ?? 'User') ?></div>
+                        <div class="text-sm text-gray-500"><?= htmlspecialchars($_SESSION['username'] ?? '') ?></div>
+                        <div class="text-xs mt-1">
+                            <span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded"><?= $isSuperAdmin ? 'Super Admin' : ($isAdmin ? 'Admin' : 'Member') ?></span>
+                        </div>
+                    </div>
+                    <div class="p-2">
+                        <a href="setup_2fa.php" class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 text-gray-700">
+                            <i class="fas fa-shield-alt w-5"></i>
+                            2FA Security
+                        </a>
+                        <a href="kelola_user.php" class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 text-gray-700">
+                            <i class="fas fa-users w-5"></i>
+                            Kelola User
+                        </a>
+                        <a href="deposit.php" class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 text-gray-700">
+                            <i class="fas fa-money-bill-wave w-5"></i>
+                            Kelola Deposit
+                        </a>
+                        <hr class="my-2">
+                        <a href="logout.php" class="flex items-center gap-3 p-2 rounded-lg hover:bg-red-50 text-red-600">
+                            <i class="fas fa-sign-out-alt w-5"></i>
+                            Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </nav>
 
