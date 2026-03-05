@@ -121,6 +121,34 @@ function cekLogin() {
         header("Location: login.php");
         exit;
     }
+
+    // Check if user has force_2fa but hasn't set up 2FA yet
+    $currentPage = basename($_SERVER['PHP_SELF']);
+    if ($currentPage !== 'setup_2fa.php' && $currentPage !== '2fa_setup.php' && $currentPage !== 'login.php') {
+        $conn = koneksi();
+        $user_id = $_SESSION['user_id'];
+        
+        $stmt = $conn->prepare("SELECT force_2fa FROM users WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        
+        if ($user && $user['force_2fa'] === 'yes') {
+            // Check if user has enabled 2FA
+            $stmt2 = $conn->prepare("SELECT enabled FROM user_2fa WHERE user_id = ? AND enabled = 'yes'");
+            $stmt2->bind_param("i", $user_id);
+            $stmt2->execute();
+            $result2 = $stmt2->get_result();
+            
+            if ($result2->num_rows === 0) {
+                header("Location: setup_2fa.php?required=1");
+                exit;
+            }
+        }
+        
+        $conn->close();
+    }
 }
 
 // Cek Admin

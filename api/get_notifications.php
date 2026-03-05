@@ -8,7 +8,7 @@ require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id'])) {
-    echo json_encode(['notifications' => [], 'unread' => 0]);
+    echo json_encode(['notifications' => [], 'unread' => 0, 'chat_unread' => 0]);
     exit;
 }
 
@@ -18,49 +18,65 @@ $role = $_SESSION['role'] ?? '';
 
 // Only admin can see notifications
 if (!in_array($role, ['admin', 'superadmin'])) {
-    echo json_encode(['notifications' => [], 'unread' => 0]);
+    echo json_encode(['notifications' => [], 'unread' => 0, 'chat_unread' => 0]);
     exit;
 }
 
-// Get notifications (deposit pending, new chats, etc)
-$sql = "SELECT * FROM (
-    -- Deposit pending
-    SELECT 'deposit' as type, d.id, d.nominal, u.nama_lengkap as user_name,
+// Get deposit pending
+$depositSql = "SELECT 'deposit' as type, d.id, d.nominal, u.nama_lengkap as user_name,
            CONCAT('Deposit pending Rp ', FORMAT(d.nominal, 0)) as title,
            CONCAT('Dari: ', u.nama_lengkap) as message,
            d.created_at, 'no' as is_read
     FROM deposit d
     JOIN users u ON d.user_id = u.id
     WHERE d.status = 'pending'
+    ORDER BY d.created_at DESC LIMIT 5";
 
-    UNION ALL
+$depositResult = $conn->query($depositSql);
 
-    -- Unread chats
-    SELECT 'chat' as type, c.id, c.store_id, s.nama_toko as user_name,
-           'Chat baru masuk' as title,
-           LEFT(c.message, 50) as message,
-           c.created_at, IF(c.is_read = 0, 'no', 'yes') as is_read
-    FROM chat_messages c
-    LEFT JOIN stores s ON c.store_id = s.id
-    WHERE c.is_read = 0
-    ORDER BY created_at DESC
-    LIMIT 10
-) t ORDER BY created_at DESC";
+// Get chat unread count (for stores where user has access)
+$chatUnread = 0;
+$storeIds = [];
 
-$result = $conn->query($sql);
+$storeResult = $conn->query("SELECT store_id FROM store_users WHERE user_id = $user_id");
+while ($s = $storeResult->fetch_assoc()) {
+    $storeIds[] = $s['store_id'];
+}
+
+if (!empty($storeIds)) {
+    $storeList = implode(',', $storeIds);
+    $chatSql = "SELECT COUNT(*) as total FROM chat_messages WHERE store_id IN ($storeList) AND is_read = 0 AND sender_role != 'superadmin'";
+    $chatResult = $conn->query($chatSql);
+    $chatUnread = $chatResult->fetch_assoc()['total'] ?? 0;
+}
 
 $notifications = [];
 $unread = 0;
 
-while ($row = $result->fetch_assoc()) {
+while ($row = $depositResult->fetch_assoc()) {
     $row['time_ago'] = timeAgo($row['created_at']);
     $notifications[] = $row;
     if ($row['is_read'] === 'no') $unread++;
 }
 
+// Add chat notification if there are unread chats
+if ($chatUnread > 0) {
+    $notifications[] = [
+        'type' => 'chat',
+        'id' => 0,
+        'title' => 'Chat baru',
+        'message' => "$chatUnread pesan belum dibaca",
+        'created_at' => date('Y-m-d H:i:s'),
+        'is_read' => 'no',
+        'time_ago' => 'Baru saja'
+    ];
+    $unread += $chatUnread;
+}
+
 echo json_encode([
     'notifications' => $notifications,
-    'unread' => $unread
+    'unread' => $unread,
+    'chat_unread' => $chatUnread
 ]);
 
 function timeAgo($datetime) {
