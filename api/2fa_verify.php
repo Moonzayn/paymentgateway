@@ -4,11 +4,10 @@
  */
 
 session_start();
-ob_start();
+header('Content-Type: application/json');
+
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/totp_helper.php';
-
-header('Content-Type: application/json');
 
 $action = $_GET['action'] ?? 'verify';
 
@@ -206,4 +205,3 @@ switch ($action) {
 }
 
 $conn->close();
-ob_end_flush();
