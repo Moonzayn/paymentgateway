@@ -291,6 +291,34 @@
         .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
         .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
+        /* Floating Toast Notification */
+        .toast-container {
+            position: fixed; top: 20px; right: 20px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .toast {
+            padding: 14px 20px; border-radius: 10px;
+            display: flex; align-items: center; gap: 12px;
+            font-size: 14px; min-width: 280px; max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideInRight 0.3s ease, fadeOut 0.3s ease 3.7s forwards;
+        }
+        .toast-success { background: #10b981; color: white; }
+        .toast-error { background: #ef4444; color: white; }
+        .toast i { font-size: 18px; }
+        .toast-close {
+            margin-left: auto; cursor: pointer; opacity: 0.8; font-size: 16px;
+        }
+        .toast-close:hover { opacity: 1; }
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
         /* ══════════════════════════════════════
            CARDS
            ══════════════════════════════════════ */
@@ -616,10 +644,22 @@ $storeName = $_SESSION['current_store_name'] ?? '';
         <?php endif; ?>
 
         <?php if ($alert ?? false): ?>
-        <div class="alert alert-<?= $alert['type'] == 'success' ? 'success' : 'error' ?>">
-            <i class="fas fa-<?= $alert['type'] == 'success' ? 'check-circle' : 'exclamation-circle' ?>"></i>
-            <span><?= $alert['message'] ?></span>
-        </div>
+        <div class="toast-container"></div>
+        <script>
+            function showToast(type, message) {
+                const container = document.querySelector('.toast-container');
+                const toast = document.createElement('div');
+                toast.className = 'toast toast-' + type;
+                toast.innerHTML = `
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                    <span>${message}</span>
+                    <span class="toast-close" onclick="this.parentElement.remove()">&times;</span>
+                `;
+                container.appendChild(toast);
+                setTimeout(() => toast.remove(), 4000);
+            }
+            showToast('<?= $alert['type'] ?>', '<?= addslashes($alert['message']) ?>');
+        </script>
         <?php endif; ?>
 
 <!-- ═══ PAGE SPECIFIC CONTENT STARTS HERE ═══ -->
