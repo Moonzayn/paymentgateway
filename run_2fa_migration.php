@@ -40,20 +40,14 @@ if (isset($_GET['run'])) {
         ) ENGINE=InnoDB");
 
         // Tambah kolom force_2fa
-        $conn->query("ALTER TABLE users ADD COLUMN force_2fa ENUM('yes', 'no') DEFAULT 'no'");
+        try { $conn->query("ALTER TABLE users ADD COLUMN force_2fa ENUM('yes', 'no') DEFAULT 'no'"); } catch (Exception $e) {}
 
         // Tambah kolom last_2fa_login
-        $conn->query("ALTER TABLE users ADD COLUMN last_2fa_login TIMESTAMP NULL");
+        try { $conn->query("ALTER TABLE users ADD COLUMN last_2fa_login TIMESTAMP NULL"); } catch (Exception $e) {}
         
         // Tambah kolom last_login dan login_count jika belum ada
-        $result = $conn->query("SHOW COLUMNS FROM users LIKE 'last_login'");
-        if ($result->num_rows == 0) {
-            $conn->query("ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL");
-        }
-        $result = $conn->query("SHOW COLUMNS FROM users LIKE 'login_count'");
-        if ($result->num_rows == 0) {
-            $conn->query("ALTER TABLE users ADD COLUMN login_count INT DEFAULT 0");
-        }
+        try { $conn->query("ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL"); } catch (Exception $e) {}
+        try { $conn->query("ALTER TABLE users ADD COLUMN login_count INT DEFAULT 0"); } catch (Exception $e) {}
 
         $message = "Migration berhasil! Tabel user_2fa dan kolom telah dibuat.";
     } catch (Exception $e) {
