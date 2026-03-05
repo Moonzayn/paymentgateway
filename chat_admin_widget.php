@@ -161,6 +161,12 @@
             flex: 1;
             overflow-y: auto;
             border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-conversation-list.hidden {
+            display: none;
         }
 
         .conversation-item {
@@ -503,6 +509,7 @@
             chatPanelOverlay.classList.remove('show');
             chatPanel.classList.remove('show');
             chatView.classList.remove('show');
+            conversationList.classList.remove('hidden');
             currentStoreId = null;
             stopConversationsPolling();
             stopPolling();
@@ -514,6 +521,7 @@
 
         chatViewBack.addEventListener('click', () => {
             chatView.classList.remove('show');
+            conversationList.classList.remove('hidden');
             currentStoreId = null;
             stopPolling();
             loadConversations();
@@ -604,6 +612,8 @@
             chatStoreAvatar.textContent = storeName.charAt(0).toUpperCase();
             chatStoreName.textContent = storeName;
 
+            // Hide conversation list, show chat view
+            conversationList.classList.add('hidden');
             chatView.classList.add('show');
             lastMessageId = 0;
 
