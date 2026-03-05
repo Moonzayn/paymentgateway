@@ -743,7 +743,31 @@
             }
         }
 
+        // Background polling for badge update (always running)
+        function startBadgePolling() {
+            if (window.badgePollingInterval) clearInterval(window.badgePollingInterval);
+            window.badgePollingInterval = setInterval(() => {
+                fetch('api/chat_get_all.php')
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            const total = data.total_unread;
+                            totalUnread.textContent = total;
+
+                            if (total > 0) {
+                                adminChatBadge.textContent = total > 99 ? '99+' : total;
+                                adminChatBadge.classList.add('show');
+                            } else {
+                                adminChatBadge.classList.remove('show');
+                            }
+                        }
+                    })
+                    .catch(() => {});
+            }, 5000);
+        }
+
         loadConversations();
+        startBadgePolling();
     </script>
 </body>
 </html>
