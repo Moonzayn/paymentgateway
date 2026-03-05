@@ -44,6 +44,16 @@ if (isset($_GET['run'])) {
 
         // Tambah kolom last_2fa_login
         $conn->query("ALTER TABLE users ADD COLUMN last_2fa_login TIMESTAMP NULL");
+        
+        // Tambah kolom last_login dan login_count jika belum ada
+        $result = $conn->query("SHOW COLUMNS FROM users LIKE 'last_login'");
+        if ($result->num_rows == 0) {
+            $conn->query("ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL");
+        }
+        $result = $conn->query("SHOW COLUMNS FROM users LIKE 'login_count'");
+        if ($result->num_rows == 0) {
+            $conn->query("ALTER TABLE users ADD COLUMN login_count INT DEFAULT 0");
+        }
 
         $message = "Migration berhasil! Tabel user_2fa dan kolom telah dibuat.";
     } catch (Exception $e) {
