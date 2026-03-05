@@ -3,6 +3,11 @@
  * API: Verify 2FA saat login
  */
 
+error_reporting(0);
+ini_set('display_errors', 0);
+
+ob_start();
+
 session_start();
 header('Content-Type: application/json');
 
@@ -10,6 +15,8 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/totp_helper.php';
 
 $action = $_GET['action'] ?? 'verify';
+
+try {
 
 $conn = koneksi();
 
@@ -204,4 +211,10 @@ switch ($action) {
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
 }
 
+} catch (Exception $e) {
+    error_log("2fa_verify.php error: " . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+}
+
 $conn->close();
+ob_end_flush();
