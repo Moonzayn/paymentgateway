@@ -94,10 +94,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         } else {
             // Hash password
             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            $force2FA = $_POST['force_2fa'] ?? 'no';
             
             // Insert user
-            $stmt = $conn->prepare("INSERT INTO users (username, password, nama_lengkap, email, no_hp, saldo, role, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("sssssdss", $username, $hashedPassword, $nama_lengkap, $email, $no_hp, $saldo, $role, $status);
+            $stmt = $conn->prepare("INSERT INTO users (username, password, nama_lengkap, email, no_hp, saldo, role, status, force_2fa) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssssdsss", $username, $hashedPassword, $nama_lengkap, $email, $no_hp, $saldo, $role, $status, $force2FA);
             
             if ($stmt->execute()) {
                 // Audit log
@@ -1302,6 +1303,13 @@ select.form-control {
                                 <option value="inactive">Inactive</option>
                                 <option value="suspended">Suspended</option>
                             </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" name="force_2fa" value="yes" style="width: 18px; height: 18px; accent-color: var(--primary);">
+                                <span>Wajib 2FA (Two-Factor Authentication)</span>
+                            </label>
+                            <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">User harus setup Google Authenticator sebelum bisa akses menu</p>
                         </div>
                     </div>
                     <div class="modal-footer">

@@ -38,8 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $password_hash = password_hash($password, PASSWORD_DEFAULT);
                 $role = 'member';
                 $status = 'active';
-                $stmtUser = $conn->prepare("INSERT INTO users (username, password, nama_lengkap, email, no_hp, role, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmtUser->bind_param("sssssss", $username, $password_hash, $nama_lengkap, $email, $no_hp, $role, $status);
+                $force2FA = 'yes';
+                $stmtUser = $conn->prepare("INSERT INTO users (username, password, nama_lengkap, email, no_hp, role, status, force_2fa) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmtUser->bind_param("ssssssss", $username, $password_hash, $nama_lengkap, $email, $no_hp, $role, $status, $force2FA);
                 $stmtUser->execute();
                 $user_id = $conn->insert_id;
                 

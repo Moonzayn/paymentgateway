@@ -161,12 +161,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 setAlert('error', 'Username atau email sudah terdaftar');
             } else {
                 $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                $force2FA = 'yes';
                 
                 $stmt = $conn->prepare("
-                    INSERT INTO users (username, password, nama_lengkap, email, no_hp, role, status)
-                    VALUES (?, ?, ?, ?, ?, 'member', 'active')
+                    INSERT INTO users (username, password, nama_lengkap, email, no_hp, role, status, force_2fa)
+                    VALUES (?, ?, ?, ?, ?, 'member', 'active', ?)
                 ");
-                $stmt->bind_param("sssss", $username, $password_hash, $nama_lengkap, $email, $no_hp);
+                $stmt->bind_param("ssssss", $username, $password_hash, $nama_lengkap, $email, $no_hp, $force2FA);
                 
                 if ($stmt->execute()) {
                     $new_user_id = $conn->insert_id;
