@@ -602,24 +602,27 @@
             currentStoreId = storeId;
             chatStoreAvatar.textContent = storeName.charAt(0).toUpperCase();
             chatStoreName.textContent = storeName;
-            
+
             chatView.classList.add('show');
             lastMessageId = 0;
-            
+
             loadMessages();
             markAsRead(storeId);
             startPolling();
-            
+
             stopConversationsPolling();
         }
 
         function loadMessages() {
-            if (!currentStoreId) return;
+            // Allow loading for null/0 store_id (users without store)
+            if (currentStoreId === undefined || currentStoreId === null) {
+                currentStoreId = '';
+            }
 
             fetch('api/chat_get.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'store_id=' + currentStoreId + '&last_id=' + lastMessageId
+                body: 'store_id=' + (currentStoreId || '') + '&last_id=' + lastMessageId
             })
             .then(res => res.json())
             .then(data => {
@@ -684,10 +687,13 @@
         }
 
         function markAsRead(storeId) {
+            // Handle null/0 store_id
+            const storeIdParam = (storeId === null || storeId === undefined || storeId === 0) ? '' : storeId;
+
             fetch('api/chat_mark_read.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'store_id=' + storeId
+                body: 'store_id=' + storeIdParam
             })
             .then(res => res.json())
             .then(data => {

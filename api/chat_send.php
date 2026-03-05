@@ -24,9 +24,15 @@ $sender_role = $_SESSION['role'] ?? 'kasir';
 
 if ($sender_role === 'admin' || $sender_role === 'superadmin') {
     $sender_role = 'superadmin';
-    $store_id = $_POST['store_id'] ?? null;
+    $store_id = isset($_POST['store_id']) && $_POST['store_id'] !== '' ? (int)$_POST['store_id'] : null;
 } else {
     $sender_role = ($_SESSION['role_owner'] ?? false) ? 'owner' : 'kasir';
+    // If user doesn't have a store, keep store_id as null
+}
+
+// If store_id is 0, treat it as null
+if ($store_id === 0) {
+    $store_id = null;
 }
 
 $stmt = $conn->prepare("INSERT INTO chat_messages (store_id, sender_id, sender_role, sender_name, message) VALUES (?, ?, ?, ?, ?)");

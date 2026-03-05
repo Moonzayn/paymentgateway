@@ -22,17 +22,26 @@ $last_id = (int)($_POST['last_id'] ?? 0);
 
 if ($sender_role === 'superadmin') {
     $target_store_id = $_POST['store_id'] ?? null;
-    
-    if ($target_store_id) {
+
+    if ($target_store_id !== null && $target_store_id !== '') {
+        $target_store_id = (int)$target_store_id;
         $stmt = $conn->prepare("SELECT * FROM chat_messages WHERE store_id = ? AND id > ? ORDER BY created_at ASC");
         $stmt->bind_param("ii", $target_store_id, $last_id);
     } else {
-        $stmt = $conn->prepare("SELECT * FROM chat_messages WHERE id > ? ORDER BY created_at ASC");
+        // No store_id - get messages for users without store (sender_id = user_id OR messages without store)
+        $stmt = $conn->prepare("SELECT * FROM (SELECT * FROM chat_messages WHERE (store_id IS NULL OR store_id = 0) AND id > ? ORDER BY created_at ASC) as t");
         $stmt->bind_param("i", $last_id);
     }
 } else {
-    $stmt = $conn->prepare("SELECT * FROM chat_messages WHERE store_id = ? AND id > ? ORDER BY created_at ASC");
-    $stmt->bind_param("ii", $store_id, $last_id);
+    // Regular user - show their messages (they can be owner/kasir or user without store)
+    if ($store_id) {
+        $stmt = $conn->prepare("SELECT * FROM chat_messages WHERE store_id = ? AND id > ? ORDER BY created_at ASC");
+        $stmt->bind_param("ii", $store_id, $last_id);
+    } else {
+        // User without store - show messages they sent or received without store_id
+        $stmt = $conn->prepare("SELECT * FROM chat_messages WHERE (store_id IS NULL OR store_id = 0) AND id > ? ORDER BY created_at ASC");
+        $stmt->bind_param("i", $last_id);
+    }
 }
 
 $stmt->execute();
@@ -45,8 +54,12 @@ while ($row = $result->fetch_assoc()) {
 
 $unread_count = 0;
 if ($sender_role !== 'superadmin') {
-    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM chat_messages WHERE store_id = ? AND is_read = 0 AND sender_role = 'superadmin'");
-    $stmt->bind_param("i", $store_id);
+    if ($store_id) {
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM chat_messages WHERE store_id = ? AND is_read = 0 AND sender_role = 'superadmin'");
+        $stmt->bind_param("i", $store_id);
+    } else {
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM chat_messages WHERE (store_id IS NULL OR store_id = 0) AND is_read = 0 AND sender_role = 'superadmin'");
+    }
     $stmt->execute();
     $unread = $stmt->get_result()->fetch_assoc();
     $unread_count = $unread['count'] ?? 0;
