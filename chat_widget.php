@@ -614,6 +614,33 @@
             }
         }
 
+        // Polling for unread count even when chat is closed
+        function startUnreadPolling() {
+            if (window.unreadPollingInterval) clearInterval(window.unreadPollingInterval);
+            window.unreadPollingInterval = setInterval(() => {
+                fetch('api/chat_get.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'last_id=0'
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        unreadCount = data.unread_count;
+                        updateBadge(unreadCount);
+                    }
+                })
+                .catch(() => {});
+            }, 5000);
+        }
+
+        function stopUnreadPolling() {
+            if (window.unreadPollingInterval) {
+                clearInterval(window.unreadPollingInterval);
+                window.unreadPollingInterval = null;
+            }
+        }
+
         function playSound() {
             const audio = document.getElementById('chatSound');
             audio.volume = 0.3;
@@ -621,6 +648,7 @@
         }
 
         fetchMessages();
+        startUnreadPolling();
     </script>
 </body>
 </html>
