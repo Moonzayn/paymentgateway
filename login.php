@@ -322,6 +322,12 @@ if (isset($_GET['2fa_setup']) && $_GET['2fa_setup'] == 1 && !$show2FA) {
 </div>
 
 <script>
+function getApiPath(endpoint) {
+    var path = window.location.pathname;
+    var base = path.includes('/payment/') ? '/payment' : '';
+    return base + '/api/' + endpoint;
+}
+
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(function(e) { console.log('SW failed', e); });
 }
@@ -582,7 +588,7 @@ function installApp() {
                     submitBtn.disabled = true;
                     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memverifikasi...';
 
-                    fetch('/payment/api/2fa_verify.php?action=verify', {
+                    fetch(getApiPath('2fa_verify.php') + '?action=verify', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',

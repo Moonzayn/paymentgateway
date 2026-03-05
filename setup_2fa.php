@@ -277,17 +277,14 @@ let secret = '';
 let timerInterval = null;
 let otpauthUrl = '';
 
+function getApiPath(endpoint) {
+    var path = window.location.pathname;
+    var base = path.includes('/payment/') ? '/payment' : '';
+    return base + '/api/' + endpoint;
+}
+
 function initSetup() {
-    // Auto-detect correct path based on current location
-    var pathParts = window.location.pathname.split('/');
-    var apiPath = '/api/2fa_setup.php';
-
-    // If payment folder exists in URL, use payment/api
-    if (pathParts.includes('payment')) {
-        apiPath = '/payment/api/2fa_setup.php';
-    }
-
-    fetch(apiPath + '?action=init')
+    fetch(getApiPath('2fa_setup.php') + '?action=init')
         .then(function(res) { return res.json(); })
         .then(function(data) {
             if (data.success) {
@@ -357,7 +354,7 @@ function verifySetup() {
     document.getElementById('verifyBtn').disabled = true;
     document.getElementById('verifyBtn').textContent = 'Memverifikasi...';
 
-    fetch('/payment/api/2fa_setup.php?action=verify', {
+    fetch(getApiPath('2fa_setup.php') + '?action=verify', {
         method: 'POST',
         body: formData
     })
@@ -409,7 +406,7 @@ function disable2FA() {
     const formData = new FormData();
     formData.append('code', code);
 
-    fetch('/payment/api/2fa_setup.php?action=disable', {
+    fetch(getApiPath('2fa_setup.php') + '?action=disable', {
         method: 'POST',
         body: formData
     })
