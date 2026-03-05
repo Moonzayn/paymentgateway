@@ -482,7 +482,7 @@
     let isDragging = false;
     let hasMoved = false;
     let startX, startY, initialX, initialY;
-    const DRAG_THRESHOLD = 20;
+    const DRAG_THRESHOLD = 10;
 
     banner.addEventListener('mousedown', startDrag);
     banner.addEventListener('touchstart', startDrag, {passive: true});
@@ -501,7 +501,7 @@
     }
 
     document.addEventListener('mousemove', drag);
-    document.addEventListener('touchmove', drag, {passive: false});
+    document.addEventListener('touchmove', drag, {passive: true});
 
     function drag(e) {
         const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
@@ -516,7 +516,6 @@
         }
 
         if (isDragging) {
-            e.preventDefault();
             const deltaPosX = clientX - startX;
             const deltaPosY = clientY - startY;
             banner.style.left = (initialX + deltaPosX) + 'px';

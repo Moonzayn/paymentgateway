@@ -423,7 +423,6 @@
                 }
 
                 if (isDragging) {
-                    e.preventDefault(); // Prevent page scroll while dragging
                     const deltaPosX = clientX - startX;
                     const deltaPosY = clientY - startY;
                     chatToggle.style.left = (initialX + deltaPosX) + 'px';
@@ -449,7 +448,7 @@
             chatToggle.addEventListener('touchstart', handleStart, {passive: true});
 
             document.addEventListener('mousemove', handleMove);
-            document.addEventListener('touchmove', handleMove, {passive: false});
+            document.addEventListener('touchmove', handleMove, {passive: true});
 
             document.addEventListener('mouseup', handleEnd);
             document.addEventListener('touchend', handleEnd);
