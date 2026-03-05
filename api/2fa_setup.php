@@ -113,10 +113,14 @@ switch ($action) {
         }
 
         if ($stmt->execute()) {
-            // Update user force_2fa = yes (semua user wajib 2FA)
-            $stmt = $conn->prepare("UPDATE users SET force_2fa = 'yes' WHERE id = ?");
-            $stmt->bind_param("i", $user_id);
-            $stmt->execute();
+            // Check if user was in required flow (force_2fa should be yes)
+            // Only set force_2fa = yes if user came from required flow
+            $isRequired = isset($_SESSION['2fa_required_user_id']);
+            if ($isRequired) {
+                $stmt = $conn->prepare("UPDATE users SET force_2fa = 'yes' WHERE id = ?");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+            }
 
             // Clear session
             unset($_SESSION['2fa_pending_secret']);
