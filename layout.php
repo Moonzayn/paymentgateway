@@ -45,6 +45,12 @@
             color: var(--text);
             min-height: 100vh;
             display: flex;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+        }
+        html {
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
         }
 
         /* ══════════════════════════════════════
@@ -261,7 +267,12 @@
         /* ══════════════════════════════════════
            PAGE CONTENT
            ══════════════════════════════════════ */
-        .page-content { flex: 1; padding: 24px; }
+        .page-content {
+            flex: 1;
+            padding: 24px;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
 
         .page-header { margin-bottom: 24px; }
         .page-header h1 {

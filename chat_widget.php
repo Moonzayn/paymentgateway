@@ -24,7 +24,7 @@
             color: white;
             border: none;
             cursor: move;
-            touch-action: none;
+            touch-action: manipulation;
             box-shadow: 0 8px 24px rgba(0, 122, 255, 0.4);
             display: flex;
             align-items: center;
@@ -391,7 +391,7 @@
             let isDragging = false;
             let hasMoved = false;
             let startX, startY, initialX, initialY;
-            const DRAG_THRESHOLD = 20; // 20px minimum to count as drag
+            const DRAG_THRESHOLD = 30; // 30px minimum to count as drag
 
             function handleStart(e) {
                 // Only handle if touching the chat toggle button itself
