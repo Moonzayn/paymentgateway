@@ -428,23 +428,24 @@
 #installBanner {
     display: none;
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    bottom: 100px;
+    left: 20px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     padding: 12px 16px;
-    z-index: 9999;
+    z-index: 9998;
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     border-radius: 50px;
-    cursor: pointer;
+    cursor: move;
     animation: bounce 0.5s ease;
+    user-select: none;
 }
 @keyframes bounce {
     0%,100% { transform: scale(1); }
     50% { transform: scale(1.05); }
 }
-#installBanner:hover {
-    transform: scale(1.05);
+#installBanner:active {
+    cursor: grabbing;
 }
 #installBanner .install-icon {
     display: flex;
@@ -455,12 +456,63 @@
 }
 </style>
 
-<div id="installBanner" onclick="installApp()" title="Klik untuk install app">
-    <div class="install-icon">
+<div id="installBanner" title="Klik untuk install app, geser untuk memindahkan">
+    <div class="install-icon" onclick="installApp()">
         <i class="fas fa-download"></i>
         <span>Install App</span>
     </div>
 </div>
+
+<script>
+(function() {
+    const banner = document.getElementById('installBanner');
+    if (!banner) return;
+
+    let isDragging = false;
+    let startX, startY, initialX, initialY;
+
+    banner.addEventListener('mousedown', startDrag);
+    banner.addEventListener('touchstart', startDrag, {passive: false});
+
+    function startDrag(e) {
+        if (e.target.closest('.install-icon')) return;
+        isDragging = true;
+        const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+        startX = clientX;
+        startY = clientY;
+        initialX = banner.offsetLeft;
+        initialY = banner.offsetTop;
+        banner.style.transition = 'none';
+    }
+
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('touchmove', drag, {passive: false});
+
+    function drag(e) {
+        if (!isDragging) return;
+        e.preventDefault();
+        const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+        const deltaX = clientX - startX;
+        const deltaY = clientY - startY;
+        banner.style.left = (initialX + deltaX) + 'px';
+        banner.style.top = (initialY + deltaY) + 'px';
+        banner.style.right = 'auto';
+        banner.style.bottom = 'auto';
+    }
+
+    document.addEventListener('mouseup', stopDrag);
+    document.addEventListener('touchend', stopDrag);
+
+    function stopDrag() {
+        if (isDragging) {
+            isDragging = false;
+            banner.style.transition = '';
+        }
+    }
+})();
+</script>
 
 <!-- Overlay for PWA Install -->
 <div id="pwaOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;" onclick="dismissPwa()"></div>

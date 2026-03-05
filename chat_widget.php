@@ -23,7 +23,8 @@
             background: linear-gradient(135deg, #007AFF, #5856D6);
             color: white;
             border: none;
-            cursor: pointer;
+            cursor: move;
+            touch-action: none;
             box-shadow: 0 8px 24px rgba(0, 122, 255, 0.4);
             display: flex;
             align-items: center;
@@ -384,8 +385,68 @@
         let isChatOpen = false;
         let pollingInterval = null;
         let unreadCount = 0;
+        let wasDragged = false;
 
-        chatToggle.addEventListener('click', () => {
+        // Draggable chat button
+        (function() {
+            let isDragging = false;
+            let startX, startY, initialX, initialY;
+
+            chatToggle.addEventListener('mousedown', startDrag);
+            chatToggle.addEventListener('touchstart', startDrag, {passive: false});
+
+            function startDrag(e) {
+                isDragging = false;
+                wasDragged = false;
+                const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+                startX = clientX;
+                startY = clientY;
+                initialX = chatToggle.offsetLeft;
+                initialY = chatToggle.offsetTop;
+                chatToggle.style.transition = 'none';
+            }
+
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('touchmove', drag, {passive: false});
+
+            function drag(e) {
+                const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+                const deltaX = Math.abs(clientX - startX);
+                const deltaY = Math.abs(clientY - startY);
+
+                if (deltaX > 5 || deltaY > 5) {
+                    isDragging = true;
+                    wasDragged = true;
+                }
+
+                if (isDragging) {
+                    const deltaPosX = clientX - startX;
+                    const deltaPosY = clientY - startY;
+                    chatToggle.style.left = (initialX + deltaPosX) + 'px';
+                    chatToggle.style.top = (initialY + deltaPosY) + 'px';
+                    chatToggle.style.right = 'auto';
+                    chatToggle.style.bottom = 'auto';
+                }
+            }
+
+            document.addEventListener('mouseup', stopDrag);
+            document.addEventListener('touchend', stopDrag);
+
+            function stopDrag() {
+                if (isDragging) {
+                    isDragging = false;
+                    chatToggle.style.transition = '';
+                }
+            }
+        })();
+
+        chatToggle.addEventListener('click', (e) => {
+            if (wasDragged) {
+                wasDragged = false;
+                return;
+            }
             isChatOpen = !isChatOpen;
             chatModal.classList.toggle('show', isChatOpen);
             if (isChatOpen) {
