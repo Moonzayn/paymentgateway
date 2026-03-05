@@ -276,14 +276,17 @@ if (isset($_GET['2fa_setup']) && $_GET['2fa_setup'] == 1 && !$show2FA) {
 #installBanner {
     display: none;
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 400px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     padding: 16px 20px;
     z-index: 9999;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    border-radius: 12px;
 }
 #installBanner .btn-install {
     background: white;
