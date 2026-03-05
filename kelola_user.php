@@ -10,6 +10,7 @@ if ($_SESSION['role'] != 'admin') {
 
 $conn = koneksi();
 $id_user = $_SESSION['user_id'];
+$isSuperAdmin = isset($_SESSION['is_super_admin']) && $_SESSION['is_super_admin'] == 'yes';
 
 // ═══ Layout Variables ═══
 $pageTitle   = 'Kelola User';
@@ -1213,8 +1214,14 @@ select.form-control {
                                         class="action-btn key" title="Reset Password">
                                     <i class="fas fa-key"></i>
                                 </button>
+                                <?php if ($isSuperAdmin): ?>
+                                <button onclick="openReset2FAModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')"
+                                        class="action-btn" style="background:#f59e0b;color:white;" title="Reset 2FA">
+                                    <i class="fas fa-shield-alt"></i>
+                                </button>
+                                <?php endif; ?>
                                 <?php if ($user['id'] != $_SESSION['user_id'] && $user['role'] != 'admin'): ?>
-                                <button onclick="openDeleteModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')" 
+                                <button onclick="openDeleteModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')"
                                         class="action-btn delete" title="Hapus">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -1457,6 +1464,35 @@ select.form-control {
         </div>
     </div>
 
+    <!-- Modal Reset 2FA -->
+    <div id="reset2FAModal" class="modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Reset 2FA User</h3>
+                    <button type="button" class="modal-close" onclick="closeModal('reset2FAModal')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form method="POST" action="" onsubmit="return reset2FA(event)">
+                    <div class="modal-body">
+                        <p>Anda akan mereset 2FA untuk user:</p>
+                        <input type="hidden" name="action" value="reset_2fa">
+                        <input type="hidden" name="user_id" id="reset2fa_user_id">
+                        <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:12px 0;">
+                            <strong style="color:#92400e;" id="reset2fa_username"></strong>
+                        </div>
+                        <p style="color:#dc2626;font-size:14px;">User akan logout dan harus setup 2FA ulang saat login.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeModal('reset2FAModal')">Batal</button>
+                        <button type="submit" class="btn btn-primary" style="background:#f59e0b;border-color:#f59e0b;">Reset 2FA</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Delete User -->
     <div id="deleteUserModal" class="modal">
         <div class="modal-dialog">
@@ -1548,6 +1584,38 @@ function openDeleteModal(userId, username) {
     document.getElementById('delete_user_id').value = userId;
     document.getElementById('delete_username').textContent = username;
     openModal('deleteUserModal');
+}
+
+// Reset 2FA Modal
+function openReset2FAModal(userId, username) {
+    document.getElementById('reset2fa_user_id').value = userId;
+    document.getElementById('reset2fa_username').textContent = username;
+    openModal('reset2FAModal');
+}
+
+function reset2FA(e) {
+    e.preventDefault();
+    var userId = document.getElementById('reset2fa_user_id').value;
+    var path = window.location.pathname;
+    var base = path.includes('/payment/') ? '/payment' : '';
+    var apiUrl = base + '/api/2fa_reset.php?action=reset';
+
+    fetch(apiUrl, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'user_id=' + userId
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('2FA berhasil direset!');
+            closeModal('reset2FAModal');
+            location.reload();
+        } else {
+            alert('Gagal: ' + data.message);
+        }
+    });
+    return false;
 }
 
 // Validate Password
