@@ -4,6 +4,7 @@
  */
 
 session_start();
+ob_start();
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/totp_helper.php';
 
@@ -205,3 +206,4 @@ switch ($action) {
 }
 
 $conn->close();
+ob_end_flush();

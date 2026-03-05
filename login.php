@@ -595,7 +595,12 @@ function installApp() {
                         },
                         body: 'code=' + encodeURIComponent(code)
                     })
-                    .then(res => res.json())
+                    .then(res => {
+                        if (!res.ok) {
+                            throw new Error('HTTP error ' + res.status);
+                        }
+                        return res.json();
+                    })
                     .then(data => {
                         if (data.success) {
                             window.location.href = data.redirect || 'index.php';
@@ -611,7 +616,8 @@ function installApp() {
                         }
                     })
                     .catch(err => {
-                        alert('Terjadi kesalahan. Silakan coba lagi.');
+                        console.error('2FA Verify Error:', err);
+                        alert('Terjadi kesalahan: ' + err.message + '. Silakan coba lagi.');
                     })
                     .finally(() => {
                         submitBtn.disabled = false;
