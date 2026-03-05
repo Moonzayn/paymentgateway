@@ -24,19 +24,19 @@ $sender_role = $_SESSION['role'] ?? 'kasir';
 
 if ($sender_role === 'admin' || $sender_role === 'superadmin') {
     $sender_role = 'superadmin';
-    $store_id = isset($_POST['store_id']) && $_POST['store_id'] !== '' ? (int)$_POST['store_id'] : null;
+    $target_user_id = $_POST['user_id'] ?? null;
+    $room_id = $target_user_id ? 'user_' . $target_user_id : null;
 } else {
     $sender_role = ($_SESSION['role_owner'] ?? false) ? 'owner' : 'kasir';
-    // If user doesn't have a store, keep store_id as null
+    $room_id = 'user_' . $user_id;
 }
 
-// If store_id is 0, treat it as null
 if ($store_id === 0) {
     $store_id = null;
 }
 
-$stmt = $conn->prepare("INSERT INTO chat_messages (store_id, sender_id, sender_role, sender_name, message) VALUES (?, ?, ?, ?, ?)");
-$stmt->bind_param("iisss", $store_id, $user_id, $sender_role, $sender_name, $message);
+$stmt = $conn->prepare("INSERT INTO chat_messages (store_id, sender_id, sender_role, sender_name, message, room_id) VALUES (?, ?, ?, ?, ?, ?)");
+$stmt->bind_param("iissss", $store_id, $user_id, $sender_role, $sender_name, $message, $room_id);
 
 if ($stmt->execute()) {
     echo json_encode(['success' => true, 'message' => 'Message sent']);

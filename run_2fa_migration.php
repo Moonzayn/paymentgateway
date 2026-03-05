@@ -49,6 +49,10 @@ if (isset($_GET['run'])) {
         try { $conn->query("ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL"); } catch (Exception $e) {}
         try { $conn->query("ALTER TABLE users ADD COLUMN login_count INT DEFAULT 0"); } catch (Exception $e) {}
 
+        // Tambah kolom room_id untuk chat
+        try { $conn->query("ALTER TABLE chat_messages ADD COLUMN room_id VARCHAR(50) DEFAULT NULL"); } catch (Exception $e) {}
+        try { $conn->query("ALTER TABLE chat_messages ADD INDEX idx_room_id (room_id)"); } catch (Exception $e) {}
+
         $message = "Migration berhasil! Tabel user_2fa dan kolom telah dibuat.";
     } catch (Exception $e) {
         $error = $e->getMessage();

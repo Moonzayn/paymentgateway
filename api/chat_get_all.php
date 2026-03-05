@@ -11,51 +11,63 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'supe
 
 $conn = koneksi();
 
-// Get all distinct store_ids (including NULL to show users without store)
+// Get all distinct room_ids and store_ids
 $stmt = $conn->query("
-    SELECT DISTINCT store_id FROM chat_messages
+    SELECT DISTINCT room_id, store_id FROM chat_messages
+    WHERE room_id IS NOT NULL
+    UNION
+    SELECT DISTINCT NULL as room_id, store_id FROM chat_messages
+    WHERE store_id IS NOT NULL
 ");
 
 $conversations = [];
 $total_unread = 0;
 
 while ($row = $stmt->fetch_assoc()) {
+    $room_id = $row['room_id'];
     $store_id = $row['store_id'];
 
-    // Get store name
-    $store_name = 'Unknown Store';
-    if ($store_id) {
+    $user_name = 'Unknown User';
+    $user_id = null;
+
+    if ($room_id) {
+        $user_id = str_replace('user_', '', $room_id);
+        $userStmt = $conn->prepare("SELECT nama_lengkap FROM users WHERE id = ?");
+        $userStmt->bind_param("i", $user_id);
+        $userStmt->execute();
+        $userResult = $userStmt->get_result();
+        if ($userResult->num_rows > 0) {
+            $user = $userResult->fetch_assoc();
+            $user_name = $user['nama_lengkap'];
+        }
+        $user_name .= ' (Member)';
+        
+        $msgStmt = $conn->prepare("SELECT message, created_at FROM chat_messages WHERE room_id = ? ORDER BY created_at DESC LIMIT 1");
+        $msgStmt->bind_param("s", $room_id);
+        
+        $unreadStmt = $conn->prepare("SELECT COUNT(*) as cnt FROM chat_messages WHERE room_id = ? AND is_read = 0 AND sender_role != 'superadmin'");
+        $unreadStmt->bind_param("s", $room_id);
+    } elseif ($store_id) {
         $storeStmt = $conn->prepare("SELECT nama_toko FROM stores WHERE id = ?");
         $storeStmt->bind_param("i", $store_id);
         $storeStmt->execute();
         $storeResult = $storeStmt->get_result();
         if ($storeResult->num_rows > 0) {
             $store = $storeResult->fetch_assoc();
-            $store_name = $store['nama_toko'];
+            $user_name = $store['nama_toko'];
         }
-    } else {
-        // For NULL store_id, get the sender name
-        $senderStmt = $conn->query("SELECT sender_name FROM chat_messages WHERE store_id IS NULL ORDER BY created_at DESC LIMIT 1");
-        if ($senderStmt->num_rows > 0) {
-            $sender = $senderStmt->fetch_assoc();
-            $store_name = $sender['sender_name'] . ' (No Store)';
-        }
-    }
-
-    // Get last message
-    if ($store_id) {
+        
         $msgStmt = $conn->prepare("SELECT message, created_at FROM chat_messages WHERE store_id = ? ORDER BY created_at DESC LIMIT 1");
         $msgStmt->bind_param("i", $store_id);
+        
+        $unreadStmt = $conn->prepare("SELECT COUNT(*) as cnt FROM chat_messages WHERE store_id = ? AND is_read = 0 AND sender_role != 'superadmin'");
+        $unreadStmt->bind_param("i", $store_id);
     } else {
-        $msgStmt = $conn->query("SELECT message, created_at FROM chat_messages WHERE store_id IS NULL ORDER BY created_at DESC LIMIT 1");
+        continue;
     }
 
-    if ($store_id) {
-        $msgStmt->execute();
-        $msgResult = $msgStmt->get_result();
-    } else {
-        $msgResult = $msgStmt;
-    }
+    $msgStmt->execute();
+    $msgResult = $msgStmt->get_result();
 
     $last_message = '';
     $last_time = null;
@@ -65,22 +77,16 @@ while ($row = $stmt->fetch_assoc()) {
         $last_time = $msg['created_at'];
     }
 
-    // Get unread count for this conversation
-    if ($store_id) {
-        $unreadStmt = $conn->prepare("SELECT COUNT(*) as cnt FROM chat_messages WHERE store_id = ? AND is_read = 0 AND sender_role != 'superadmin'");
-        $unreadStmt->bind_param("i", $store_id);
-        $unreadStmt->execute();
-        $unreadResult = $unreadStmt->get_result();
-    } else {
-        $unreadResult = $conn->query("SELECT COUNT(*) as cnt FROM chat_messages WHERE store_id IS NULL AND is_read = 0 AND sender_role != 'superadmin'");
-    }
-
+    $unreadStmt->execute();
+    $unreadResult = $unreadStmt->get_result();
     $unread = $unreadResult->fetch_assoc()['cnt'] ?? 0;
     $total_unread += $unread;
 
     $conversations[] = [
+        'room_id' => $room_id,
         'store_id' => $store_id,
-        'nama_toko' => $store_name,
+        'user_id' => $user_id,
+        'user_name' => $user_name,
         'last_message' => $last_message,
         'last_time' => $last_time,
         'unread' => $unread
