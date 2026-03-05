@@ -582,6 +582,7 @@ $storeName = $_SESSION['current_store_name'] ?? '';
                             <i class="fas fa-shield-alt w-5"></i>
                             2FA Security
                         </a>
+                        <?php if ($isSuperAdmin || $isAdmin): ?>
                         <a href="kelola_user.php" class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 text-gray-700">
                             <i class="fas fa-users w-5"></i>
                             Kelola User
@@ -590,6 +591,7 @@ $storeName = $_SESSION['current_store_name'] ?? '';
                             <i class="fas fa-money-bill-wave w-5"></i>
                             Kelola Deposit
                         </a>
+                        <?php endif; ?>
                         <hr class="my-2">
                         <a href="logout.php" class="flex items-center gap-3 p-2 rounded-lg hover:bg-red-50 text-red-600">
                             <i class="fas fa-sign-out-alt w-5"></i>
