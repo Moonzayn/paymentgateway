@@ -168,6 +168,7 @@ switch ($action) {
                     'backup_codes' => $backupCodes,
                     'redirect' => 'index.php'
                 ]);
+                exit;
             } else {
                 echo json_encode([
                     'success' => true,
@@ -175,8 +176,10 @@ switch ($action) {
                     'backup_codes' => $backupCodes
                 ]);
             }
+            exit;
         } else {
             echo json_encode(['success' => false, 'message' => 'Gagal menyimpan. Silakan coba lagi.']);
+            exit;
         }
         break;
 
