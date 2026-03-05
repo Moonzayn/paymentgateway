@@ -247,6 +247,7 @@
             flex: 1;
             display: none;
             flex-direction: column;
+            min-height: 0;
         }
 
         .chat-view.show {
@@ -663,7 +664,10 @@
 
         function sendMessageView() {
             const message = chatInputView.value.trim();
-            if (!message || !currentStoreId) return;
+            if (!message) return;
+
+            // Allow sending even if store_id is null/0 (for users without store)
+            const storeIdParam = (currentStoreId === null || currentStoreId === undefined || currentStoreId === 0) ? '' : currentStoreId;
 
             chatSendView.disabled = true;
             chatInputView.value = '';
@@ -671,7 +675,7 @@
             fetch('api/chat_send.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'message=' + encodeURIComponent(message) + '&store_id=' + currentStoreId
+                body: 'message=' + encodeURIComponent(message) + '&store_id=' + storeIdParam
             })
             .then(res => res.json())
             .then(data => {
