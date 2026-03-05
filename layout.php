@@ -469,14 +469,17 @@
     if (!banner) return;
 
     let isDragging = false;
+    let hasMoved = false;
     let startX, startY, initialX, initialY;
+    const DRAG_THRESHOLD = 20;
 
     banner.addEventListener('mousedown', startDrag);
-    banner.addEventListener('touchstart', startDrag, {passive: false});
+    banner.addEventListener('touchstart', startDrag, {passive: true});
 
     function startDrag(e) {
         if (e.target.closest('.install-icon')) return;
-        isDragging = true;
+        isDragging = false;
+        hasMoved = false;
         const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
         const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
         startX = clientX;
@@ -490,16 +493,26 @@
     document.addEventListener('touchmove', drag, {passive: false});
 
     function drag(e) {
-        if (!isDragging) return;
-        e.preventDefault();
         const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
         const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
-        const deltaX = clientX - startX;
-        const deltaY = clientY - startY;
-        banner.style.left = (initialX + deltaX) + 'px';
-        banner.style.top = (initialY + deltaY) + 'px';
-        banner.style.right = 'auto';
-        banner.style.bottom = 'auto';
+        const deltaX = Math.abs(clientX - startX);
+        const deltaY = Math.abs(clientY - startY);
+
+        // Start dragging only after threshold
+        if (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD) {
+            isDragging = true;
+            hasMoved = true;
+        }
+
+        if (isDragging) {
+            e.preventDefault();
+            const deltaPosX = clientX - startX;
+            const deltaPosY = clientY - startY;
+            banner.style.left = (initialX + deltaPosX) + 'px';
+            banner.style.top = (initialY + deltaPosY) + 'px';
+            banner.style.right = 'auto';
+            banner.style.bottom = 'auto';
+        }
     }
 
     document.addEventListener('mouseup', stopDrag);
@@ -510,6 +523,10 @@
             isDragging = false;
             banner.style.transition = '';
         }
+        setTimeout(() => {
+            startX = null;
+            startY = null;
+        }, 100);
     }
 })();
 </script>

@@ -385,19 +385,20 @@
         let isChatOpen = false;
         let pollingInterval = null;
         let unreadCount = 0;
-        let wasDragged = false;
 
         // Draggable chat button
         (function() {
             let isDragging = false;
+            let hasMoved = false;
             let startX, startY, initialX, initialY;
+            const DRAG_THRESHOLD = 20; // 20px minimum to count as drag
 
-            chatToggle.addEventListener('mousedown', startDrag);
-            chatToggle.addEventListener('touchstart', startDrag, {passive: false});
+            function handleStart(e) {
+                // Only handle if touching the chat toggle button itself
+                if (e.target !== chatToggle && !chatToggle.contains(e.target)) return;
 
-            function startDrag(e) {
                 isDragging = false;
-                wasDragged = false;
+                hasMoved = false;
                 const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
                 startX = clientX;
@@ -407,21 +408,22 @@
                 chatToggle.style.transition = 'none';
             }
 
-            document.addEventListener('mousemove', drag);
-            document.addEventListener('touchmove', drag, {passive: false});
+            function handleMove(e) {
+                if (!startX && !startY) return;
 
-            function drag(e) {
                 const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
                 const deltaX = Math.abs(clientX - startX);
                 const deltaY = Math.abs(clientY - startY);
 
-                if (deltaX > 5 || deltaY > 5) {
+                // Only start dragging after threshold is exceeded
+                if (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD) {
                     isDragging = true;
-                    wasDragged = true;
+                    hasMoved = true;
                 }
 
                 if (isDragging) {
+                    e.preventDefault(); // Prevent page scroll while dragging
                     const deltaPosX = clientX - startX;
                     const deltaPosY = clientY - startY;
                     chatToggle.style.left = (initialX + deltaPosX) + 'px';
@@ -431,22 +433,39 @@
                 }
             }
 
-            document.addEventListener('mouseup', stopDrag);
-            document.addEventListener('touchend', stopDrag);
-
-            function stopDrag() {
+            function handleEnd() {
                 if (isDragging) {
                     isDragging = false;
                     chatToggle.style.transition = '';
                 }
+                // Reset after a short delay to allow click to work
+                setTimeout(() => {
+                    startX = null;
+                    startY = null;
+                }, 100);
             }
+
+            chatToggle.addEventListener('mousedown', handleStart);
+            chatToggle.addEventListener('touchstart', handleStart, {passive: true});
+
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('touchmove', handleMove, {passive: false});
+
+            document.addEventListener('mouseup', handleEnd);
+            document.addEventListener('touchend', handleEnd);
+
+            // Click handler - only trigger if not dragged
+            chatToggle.addEventListener('click', (e) => {
+                if (hasMoved) {
+                    hasMoved = false;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+            });
         })();
 
-        chatToggle.addEventListener('click', (e) => {
-            if (wasDragged) {
-                wasDragged = false;
-                return;
-            }
+        chatToggle.addEventListener('click', () => {
             isChatOpen = !isChatOpen;
             chatModal.classList.toggle('show', isChatOpen);
             if (isChatOpen) {
