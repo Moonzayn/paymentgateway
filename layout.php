@@ -395,60 +395,47 @@
 </head>
 <body>
 
-<!-- PWA Install Banner -->
+<!-- PWA Install Banner - Floating Button -->
 <style>
 #installBanner {
     display: none;
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    bottom: 20px;
+    right: 20px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 16px 20px;
+    padding: 12px 16px;
     z-index: 9999;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-    animation: slideUp 0.3s ease;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    border-radius: 50px;
+    cursor: pointer;
+    animation: bounce 0.5s ease;
 }
-@keyframes slideUp {
-    from { transform: translateY(100%); }
-    to { transform: translateY(0); }
+@keyframes bounce {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
 }
-#installBanner .btn-install {
-    background: white;
-    color: #6353D8;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
+#installBanner:hover {
+    transform: scale(1.05);
+}
+#installBanner .install-icon {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
     font-weight: 600;
-    cursor: pointer;
-    margin-left: 12px;
-}
-#installBanner .btn-dismiss {
-    background: transparent;
-    color: white;
-    border: 1px solid rgba(255,255,255,0.5);
-    padding: 10px 16px;
-    border-radius: 8px;
-    cursor: pointer;
 }
 </style>
 
-<div id="installBanner">
-    <div style="display:flex;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto;width:100%;">
-        <div style="display:flex;align-items:center;gap:12px;">
-            <i class="fas fa-mobile-alt" style="font-size:24px;"></i>
-            <div>
-                <div style="font-weight:600;">Install App PPOB Express</div>
-                <div style="font-size:12px;opacity:0.9;">Buka sebagai aplikasi di HP</div>
-            </div>
-        </div>
-        <div style="display:flex;gap:8px;">
-            <button class="btn-dismiss" onclick="dismissBanner()">Nanti</button>
-            <button class="btn-install" onclick="installApp()">Install</button>
-        </div>
+<div id="installBanner" onclick="installApp()" title="Klik untuk install app">
+    <div class="install-icon">
+        <i class="fas fa-download"></i>
+        <span>Install App</span>
     </div>
 </div>
+
+<!-- Overlay for PWA Install -->
+<div id="pwaOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;" onclick="dismissPwa()"></div>
 
 <!-- Overlay (mobile) -->
 <div class="overlay" id="overlay" onclick="closeSidebar()"></div>

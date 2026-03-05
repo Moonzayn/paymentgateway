@@ -156,6 +156,12 @@ function dismissBanner() {
     if (installBanner) {
         installBanner.style.display = 'none';
     }
+    const overlay = document.getElementById('pwaOverlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+function dismissPwa() {
+    dismissBanner();
 }
 </script>
 
