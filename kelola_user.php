@@ -12,6 +12,11 @@ $conn = koneksi();
 $id_user = $_SESSION['user_id'];
 $isSuperAdmin = isset($_SESSION['is_super_admin']) && $_SESSION['is_super_admin'] == 'yes';
 
+// Generate form token for CSRF protection (only on GET requests)
+if ($_SERVER['REQUEST_METHOD'] != 'POST' && !isset($_SESSION['form_token'])) {
+    $_SESSION['form_token'] = bin2hex(random_bytes(32));
+}
+
 // ═══ Layout Variables ═══
 $pageTitle   = 'Kelola User';
 $pageIcon    = 'fas fa-users';
@@ -66,6 +71,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         header("Location: kelola_user.php");
         exit;
     }
+
+    // Prevent double submission
+    $form_token = $_POST['form_token'] ?? '';
+    if (!isset($_SESSION['form_token']) || $form_token != $_SESSION['form_token']) {
+        setAlert('error', 'Permintaan tidak valid!');
+        header("Location: kelola_user.php");
+        exit;
+    }
+    unset($_SESSION['form_token']);
     
     $username = trim($_POST['username'] ?? '');
     $nama_lengkap = trim($_POST['nama_lengkap'] ?? '');
@@ -128,7 +142,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         header("Location: kelola_user.php");
         exit;
     }
-    
+
+    // Prevent double submission
+    $form_token = $_POST['form_token'] ?? '';
+    if (!isset($_SESSION['form_token']) || $form_token != $_SESSION['form_token']) {
+        setAlert('error', 'Permintaan tidak valid!');
+        header("Location: kelola_user.php");
+        exit;
+    }
+    unset($_SESSION['form_token']);
+
     $user_id = intval($_POST['user_id'] ?? 0);
     $nama_lengkap = trim($_POST['nama_lengkap'] ?? '');
     $email = trim($_POST['email'] ?? '');
@@ -251,6 +274,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         header("Location: kelola_user.php");
         exit;
     }
+
+    // Prevent double submission
+    $form_token = $_POST['form_token'] ?? '';
+    if (!isset($_SESSION['form_token']) || $form_token != $_SESSION['form_token']) {
+        setAlert('error', 'Permintaan tidak valid!');
+        header("Location: kelola_user.php");
+        exit;
+    }
+    unset($_SESSION['form_token']);
     
     $user_id = intval($_POST['user_id'] ?? 0);
     
@@ -1261,9 +1293,10 @@ select.form-control {
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <form method="POST" action="">
+                <form method="POST" action="" onsubmit="this.querySelector('button[type=\'submit\']').disabled = true;">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <input type="hidden" name="action" value="add">
+                    <input type="hidden" name="form_token" value="<?= htmlspecialchars($_SESSION['form_token'] ?? '') ?>">
                     <div class="modal-body">
                         <div class="form-group">
                             <label class="form-label">Username <span style="color: var(--danger);">*</span></label>
@@ -1511,10 +1544,11 @@ select.form-control {
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <form method="POST" action="">
+                <form method="POST" action="" onsubmit="this.querySelector('button[type=\'submit\']').disabled = true;">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="user_id" id="delete_user_id">
+                    <input type="hidden" name="form_token" value="<?= htmlspecialchars($_SESSION['form_token'] ?? '') ?>">
                     <div class="modal-body">
                         <div style="text-align: center; padding: 1rem 0;">
                             <div style="width: 4rem; height: 4rem; background: #fee2e2; border-radius: 9999px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
