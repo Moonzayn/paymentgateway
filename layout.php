@@ -434,40 +434,85 @@
 </head>
 <body>
 
-<!-- PWA Install Banner - Floating Button -->
+<!-- PWA Install Banner - Hybrid Approach -->
 <style>
 #installBanner {
     display: none;
     position: fixed;
-    bottom: 100px;
-    left: 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 12px 16px;
     z-index: 9998;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    border-radius: 50px;
     cursor: move;
-    animation: bounce 0.5s ease;
     user-select: none;
+    animation: slideUp 0.3s ease;
 }
-@keyframes bounce {
-    0%,100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
-#installBanner:active {
-    cursor: grabbing;
+#installBanner:active { cursor: grabbing; }
+
+/* Mobile: Bottom banner */
+@media (max-width: 768px) {
+    #installBanner {
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 50px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+    }
+    #installBanner .install-icon {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+    #installBanner .close-btn {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+    }
 }
-#installBanner .install-icon {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    font-weight: 600;
+
+/* Desktop: Small floating button */
+@media (min-width: 769px) {
+    #installBanner {
+        bottom: 30px;
+        right: 30px;
+        left: auto;
+        transform: none;
+        background: var(--primary);
+        color: white;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        box-shadow: 0 4px 16px rgba(99, 83, 216, 0.4);
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+    #installBanner .install-icon {
+        font-size: 20px;
+    }
+    #installBanner span, #installBanner .close-btn { display: none; }
 }
 </style>
 
-<div id="installBanner" title="Klik untuk install app, geser untuk memindahkan">
+<div id="installBanner" title="Klik untuk install app">
+    <button class="close-btn" onclick="dismissBanner(); event.stopPropagation();">✕</button>
     <div class="install-icon" onclick="installApp()">
         <i class="fas fa-download"></i>
         <span>Install App</span>

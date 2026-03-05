@@ -128,15 +128,35 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// PWA Install Prompt
+// PWA Install Prompt - Hybrid Approach
 let deferredPrompt;
 const installBanner = document.getElementById('installBanner');
+
+// Track visit count for mobile (show after 3 visits)
+const VISIT_KEY = 'ppob_visit_count';
+const DISMISS_KEY = 'ppob_install_dismissed';
+let visitCount = parseInt(localStorage.getItem(VISIT_KEY) || '0');
+visitCount++;
+localStorage.setItem(VISIT_KEY, visitCount);
+
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+const isDismissed = localStorage.getItem(DISMISS_KEY) === 'true';
 
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
+    
+    // Show banner based on platform
     if (installBanner) {
-        installBanner.style.display = 'flex';
+        if (isMobile) {
+            // Mobile: Show after 3 visits and not dismissed
+            if (visitCount >= 3 && !isDismissed) {
+                installBanner.style.display = 'flex';
+            }
+        } else {
+            // Desktop: Show always
+            installBanner.style.display = 'flex';
+        }
     }
 });
 
@@ -156,6 +176,7 @@ function dismissBanner() {
     if (installBanner) {
         installBanner.style.display = 'none';
     }
+    localStorage.setItem(DISMISS_KEY, 'true');
     const overlay = document.getElementById('pwaOverlay');
     if (overlay) overlay.style.display = 'none';
 }
