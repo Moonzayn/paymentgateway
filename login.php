@@ -138,8 +138,15 @@ if (isset($_GET['2fa_setup']) && $_GET['2fa_setup'] == 1 && !$show2FA) {
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="theme-color" content="#6353D8">
+    <meta name="description" content="PPOB Express - Isi Pulsa, Kuota, Token Listrik, Game">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="PPOB Express">
     <title>Login - PPOB Express</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%236353D8' width='100' height='100' rx='20'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='white'>P</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -263,6 +270,75 @@ if (isset($_GET['2fa_setup']) && $_GET['2fa_setup'] == 1 && !$show2FA) {
     </style>
 </head>
 <body class="font-sans">
+
+<!-- PWA Install Banner -->
+<style>
+#installBanner {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 16px 20px;
+    z-index: 9999;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+}
+#installBanner .btn-install {
+    background: white;
+    color: #6353D8;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: 12px;
+}
+#installBanner .btn-dismiss {
+    background: transparent;
+    color: white;
+    border: 1px solid rgba(255,255,255,0.5);
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+</style>
+
+<div id="installBanner">
+    <div style="display:flex;align-items:center;justify-content:space-between;max-width:500px;margin:0 auto;width:100%;">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <i class="fas fa-mobile-alt" style="font-size:24px;"></i>
+            <div>
+                <div style="font-weight:600;">Install App</div>
+                <div style="font-size:12px;">Buka di home screen</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn-dismiss" onclick="document.getElementById('installBanner').style.display='none'">Nanti</button>
+            <button class="btn-install" onclick="installApp()">Install</button>
+        </div>
+    </div>
+</div>
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function(e) { console.log('SW failed', e); });
+}
+var deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('installBanner').style.display = 'block';
+});
+function installApp() {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+    }
+}
+</script>
+
     <div class="login-container p-4">
         <div class="w-full max-w-md">
             <!-- Header dengan Logo -->
