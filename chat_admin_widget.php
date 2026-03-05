@@ -714,7 +714,8 @@
 
         function startPolling() {
             if (pollingInterval) clearInterval(pollingInterval);
-            pollingInterval = setInterval(loadMessages, 5000);
+            loadMessages();
+            pollingInterval = setInterval(loadMessages, 3000);
         }
 
         function stopPolling() {
