@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_home"
+            android:icon="@android:drawable/ic_menu_compass"
+            android:title="Beranda"/>
+        <item
+            android:id="@+id/nav_pos"
+            android:icon="@android:drawable/ic_menu_agenda"
+            android:title="POS Kasir"/>
+        <item
+            android:id="@+id/nav_deposit"
+            android:icon="@android:drawable/ic_menu_add"
+            android:title="Deposit"/>
+        <item
+            android:id="@+id/nav_chat"
+            android:icon="@android:drawable/ic_menu_send"
+            android:title="Chat"/>
+        <item
+            android:id="@+id/nav_notifications"
+            android:icon="@android:drawable/ic_popup_reminder"
+            android:title="Notifikasi"/>
+    </group>
+
+    <item android:title="">
+        <menu>
+            <item
+                android:id="@+id/nav_logout"
+                android:icon="@android:drawable/ic_lock_power_off"
+                android:title="Logout"/>
+        </menu>
+    </item>
+
+</menu>
