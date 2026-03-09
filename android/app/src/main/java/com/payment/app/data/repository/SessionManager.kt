@@ -79,6 +79,6 @@ class SessionManager @Inject constructor(
         private const val KEY_CSRF_TOKEN = "csrf_token"
         private const val KEY_NEEDS_2FA = "needs_2fa"
         private const val KEY_BASE_URL = "base_url"
-        private const val DEFAULT_BASE_URL = "http://195.88.211.130/"
+        private const val DEFAULT_BASE_URL = "http://invitationai.my.id/"
     }
 }

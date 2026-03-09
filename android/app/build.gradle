@@ -18,7 +18,7 @@ android {
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField "String", "BASE_URL", '"http://195.88.211.130/"'
+        buildConfigField "String", "BASE_URL", '"http://invitationai.my.id/"'
     }
 
     buildTypes {
