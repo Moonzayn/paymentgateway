@@ -3,13 +3,16 @@ session_start();
 
 require_once 'config.php';
 
-// Handle JSON API request from mobile app
+// Handle API request from mobile app (JSON or Form-urlencoded)
 $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
 $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
-$isJsonRequest = (strpos($contentType, 'application/json') !== false) ||
-                 (strpos($accept, 'application/json') !== false);
+$isApiRequest = (strpos($contentType, 'application/json') !== false) ||
+                (strpos($contentType, 'application/x-www-form-urlencoded') !== false) ||
+                (strpos($accept, 'application/json') !== false) ||
+                // Check for API signature in POST params (mobile app sends this)
+                (isset($_POST['username']) && isset($_POST['password']) && !isset($_POST['csrf_token']));
 
-if ($isJsonRequest && $_SERVER['REQUEST_METHOD'] == 'POST') {
+if ($isApiRequest && $_SERVER['REQUEST_METHOD'] == 'POST') {
     header('Content-Type: application/json');
 
     // Rate limiting check
