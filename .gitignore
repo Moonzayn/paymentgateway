@@ -45,6 +45,17 @@ Thumbs.db
 vendor/
 node_modules/
 
+# Android
+android/build/
+android/app/build/
+android/.gradle/
+android/gradle/
+android/gradle-8.2/
+android/jdk/
+android/*.apk
+android/*.bat
+android/local.properties
+
 # Temporary
 tmp/
 temp/
