@@ -345,17 +345,17 @@ function queueEmail($toEmail, $subject, $body) {
 
 function processEmailQueue($limit = 10) {
     $conn = koneksi();
-    
+
     // Get pending emails
     $stmt = $conn->prepare("SELECT * FROM email_queue WHERE status = 'pending' AND attempts < max_attempts ORDER BY created_at ASC LIMIT ?");
     $stmt->bind_param("i", $limit);
     $stmt->execute();
     $result = $stmt->get_result();
-    
+
     while ($email = $result->fetch_assoc()) {
         // Try to send email
         $sent = sendEmail($email['to_email'], $email['subject'], $email['body']);
-        
+
         if ($sent) {
             $stmt = $conn->prepare("UPDATE email_queue SET status = 'sent', sent_at = NOW() WHERE id = ?");
         } else {
@@ -371,12 +371,157 @@ function sendEmail($to, $subject, $body) {
     $headers = "MIME-Version: 1.0\r\n";
     $headers .= "Content-Type:text/html;charset=UTF-8\r\n";
     $headers .= "From: noreply@" . ($_SERVER['HTTP_HOST'] ?? 'localhost') . "\r\n";
-    
+
     return mail($to, $subject, $body, $headers);
 }
 
 // ===========================================
-// API RESPONSE HELPER
+// CORS HEADERS - For Flutter Mobile App
+// ===========================================
+function setCorsHeaders() {
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+
+    header("Access-Control-Allow-Origin: $origin");
+    header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+    header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+    header("Access-Control-Allow-Credentials: true");
+    header("Access-Control-Max-Age: 86400");
+
+    // Handle preflight
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        http_response_code(200);
+        exit;
+    }
+}
+
+// ===========================================
+// API RESPONSE HELPERS
+// ===========================================
+function apiResponse($success, $data = null, $message = '', $error = null) {
+    header('Content-Type: application/json');
+
+    $response = ['success' => $success];
+
+    if ($data !== null) {
+        $response['data'] = $data;
+    }
+
+    if ($message) {
+        $response['message'] = $message;
+    }
+
+    if ($error) {
+        $response['error'] = $error;
+    }
+
+    echo json_encode($response);
+    exit;
+}
+
+function apiSuccess($data = null, $message = 'Success') {
+    apiResponse(true, $data, $message);
+}
+
+function apiError($message, $code = 'ERROR', $httpCode = 400) {
+    http_response_code($httpCode);
+    apiResponse(false, null, $message, [
+        'code' => $code,
+        'message' => $message
+    ]);
+}
+
+// ===========================================
+// API KEY AUTHENTICATION
+// ===========================================
+function generateApiToken($userId, $name = 'Flutter App', $platform = 'flutter', $deviceId = null, $expiresInDays = 365) {
+    $conn = koneksi();
+
+    // Generate unique API key and secret
+    $apiKey = 'sk_' . bin2hex(random_bytes(24));
+    $secretKey = 'secret_' . bin2hex(random_bytes(32));
+
+    // Set expiration date
+    $expiresAt = date('Y-m-d H:i:s', strtotime("+{$expiresInDays} days"));
+
+    // Insert into database
+    $stmt = $conn->prepare("INSERT INTO api_keys (user_id, api_key, secret_key, name, platform, device_id, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("isssss", $userId, $apiKey, $secretKey, $name, $platform, $deviceId, $expiresAt);
+
+    if ($stmt->execute()) {
+        return [
+            'api_key' => $apiKey,
+            'secret_key' => $secretKey,
+            'expires_at' => $expiresAt
+        ];
+    }
+
+    return null;
+}
+
+function validateApiKey($apiKey) {
+    if (empty($apiKey)) {
+        return null;
+    }
+
+    // Remove "Bearer " prefix if present
+    if (strpos($apiKey, 'Bearer ') === 0) {
+        $apiKey = substr($apiKey, 7);
+    }
+
+    $conn = koneksi();
+    $stmt = $conn->prepare("
+        SELECT ak.*, u.username, u.nama_lengkap, u.role, u.saldo, u.status as user_status
+        FROM api_keys ak
+        JOIN users u ON ak.user_id = u.id
+        WHERE ak.api_key = ? AND ak.is_active = 'yes'
+    ");
+    $stmt->bind_param("s", $apiKey);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($row = $result->fetch_assoc()) {
+        // Check expiration
+        if ($row['expires_at'] && strtotime($row['expires_at']) < time()) {
+            return null;
+        }
+
+        // Check user status
+        if ($row['user_status'] !== 'active') {
+            return null;
+        }
+
+        // Update last used
+        $stmt = $conn->prepare("UPDATE api_keys SET last_used_at = NOW() WHERE id = ?");
+        $stmt->bind_param("i", $row['id']);
+        $stmt->execute();
+
+        return $row;
+    }
+
+    return null;
+}
+
+function invalidateApiKey($apiKey) {
+    if (empty($apiKey)) {
+        return false;
+    }
+
+    if (strpos($apiKey, 'Bearer ') === 0) {
+        $apiKey = substr($apiKey, 7);
+    }
+
+    $conn = koneksi();
+    $stmt = $conn->prepare("UPDATE api_keys SET is_active = 'no' WHERE api_key = ?");
+    $stmt->bind_param("s", $apiKey);
+    return $stmt->execute();
+}
+
+function getApiKeyUser($apiKey) {
+    return validateApiKey($apiKey);
+}
+
+// ===========================================
+// API RESPONSE HELPER (Legacy)
 // ===========================================
 function saveApiResponse($transaksiId, $response) {
     $conn = koneksi();
