@@ -1,0 +1,472 @@
+================================================================================
+                    DIGIFLAZZ API - DOKUMENTASI LENGKAP
+================================================================================
+
+CREDENTIALS
+================================================================================
+Username       : pehaduD7V7ro
+Development Key: dev-7e3c8000-6531-11ec-b233-31d3fcbe4c0e
+Production Key : 3c737104-00a2-5561-b992-341577aa87f5
+Development IP : 18.138.221.217
+Production IP  : 195.88.211.130
+Base URL       : https://api.digiflazz.com/v1
+
+================================================================================
+SIGNATURE FORMULA (MD5)
+================================================================================
+Semua request memerlukan signature MD5 dengan formula berbeda:
+
+1. Cek Saldo       : md5(username + apiKey + "depo")
+2. Price List      : md5(username + apiKey + "pricelist")
+3. Deposit         : md5(username + apiKey + "deposit")
+4. Transaction     : md5(username + apiKey + ref_id)
+5. Inquiry PLN     : md5(username + apiKey + customer_no)
+
+Contoh PHP:
+    $sign = md5($username . $apiKey . $ref_id);
+
+================================================================================
+1. CEK SALDO
+================================================================================
+Endpoint : POST https://api.digiflazz.com/v1/cek-saldo
+
+Request:
+{
+    "cmd": "deposit",
+    "username": "pehaduD7V7ro",
+    "sign": "<MD5(username + apiKey + 'depo')>"
+}
+
+Response Sukses:
+{
+    "data": {
+        "deposit": 158776
+    }
+}
+
+CURL Command:
+curl -X POST https://api.digiflazz.com/v1/cek-saldo \
+  -H "Content-Type: application/json" \
+  -d '{"cmd":"deposit","username":"pehaduD7V7ro","sign":"<SIGN>"}'
+
+
+================================================================================
+2. PRICE LIST (PASCABAYAR/PREPAID)
+================================================================================
+Endpoint : POST https://api.digiflazz.com/v1/price-list
+
+Request Prepaid:
+{
+    "cmd": "prepaid",
+    "username": "pehaduD7V7ro",
+    "sign": "<MD5(username + apiKey + 'pricelist')>"
+}
+
+Request Pascabayar:
+{
+    "cmd": "pasca",
+    "username": "pehaduD7V7ro",
+    "sign": "<MD5(username + apiKey + 'pricelist')>"
+}
+
+Note: Terdapat limitasi pengecekan - simpan ke database dan update berkala.
+
+
+================================================================================
+3. DEPOSIT (TIKET DEPOSIT)
+================================================================================
+Endpoint : POST https://api.digiflazz.com/v1/deposit
+
+Request:
+{
+    "username": "pehaduD7V7ro",
+    "amount": 200000,
+    "bank": "BCA",
+    "owner_name": "Nama Pemilik",
+    "sign": "<MD5(username + apiKey + 'deposit')>"
+}
+
+Bank Options:
+  Perorangan: Flip / ShopeePay
+  Perusahaan: BCA / MANDIRI / BRI / BNI
+
+Minimum Amount: Rp 200.000
+
+
+================================================================================
+4. TOPUP / TRANSAKSI PREPAID
+================================================================================
+Endpoint : POST https://api.digiflazz.com/v1/transaction
+
+Request:
+{
+    "username": "pehaduD7V7ro",
+    "buyer_sku_code": "TSEL5",
+    "customer_no": "085183059699",
+    "ref_id": "unique_ref_id_123",
+    "sign": "<MD5(username + apiKey + ref_id)>",
+    "testing": true
+}
+
+Response:
+{
+    "data": {
+        "ref_id": "unique_ref_id_123",
+        "customer_no": "085183059699",
+        "buyer_sku_code": "TSEL5",
+        "message": "Transaksi Sukses",
+        "status": "Sukses",
+        "rc": "00",
+        "sn": "04101400001414175954",
+        "buyer_last_saldo": 153491,
+        "price": 5285
+    }
+}
+
+
+================================================================================
+5. INQUIRY TAGIHAN PASCABAYAR
+================================================================================
+Endpoint : POST https://api.digiflazz.com/v1/transaction
+
+Request:
+{
+    "commands": "inq-pasca",
+    "username": "pehaduD7V7ro",
+    "buyer_sku_code": "pln",
+    "customer_no": "530000000001",
+    "ref_id": "unique_ref_id",
+    "sign": "<MD5(username + apiKey + ref_id)>"
+}
+
+
+================================================================================
+6. BAYAR TAGIHAN PASCABAYAR
+================================================================================
+Endpoint : POST https://api.digiflazz.com/v1/transaction
+
+Request:
+{
+    "commands": "pay-pasca",
+    "username": "pehaduD7V7ro",
+    "buyer_sku_code": "pln",
+    "customer_no": "530000000001",
+    "ref_id": "SAMA_DENGAN_REF_ID_SAAT_INQUIRY",
+    "sign": "<MD5(username + apiKey + ref_id)>"
+}
+
+Note: ref_id HARUS sama dengan saat inquiry, dan hanya bisa bayar
+      pada tanggal yang sama dengan inquiry.
+
+
+================================================================================
+7. CEK STATUS TRANSAKSI
+================================================================================
+Endpoint : POST https://api.digiflazz.com/v1/transaction
+
+Request:
+{
+    "commands": "status-pasca",
+    "username": "pehaduD7V7ro",
+    "buyer_sku_code": "pln",
+    "customer_no": "530000000001",
+    "ref_id": "ref_id_transaksi",
+    "sign": "<MD5(username + apiKey + ref_id)>"
+}
+
+
+================================================================================
+8. INQUIRY PLN (CEK VALIDASI ID PLN)
+================================================================================
+Endpoint : POST https://api.digiflazz.com/v1/inquiry-pln
+
+Request:
+{
+    "username": "pehaduD7V7ro",
+    "customer_no": "1234554321",
+    "sign": "<MD5(username + apiKey + customer_no)>"
+}
+
+
+================================================================================
+RESPONSE CODES (RC)
+================================================================================
+RC   Message                                    Status     Transaksi
+--------------------------------------------------------------------------
+00   Transaksi Sukses                          Sukses     Ya
+01   Timeout                                    Gagal      Ya
+02   Transaksi Gagal                            Gagal      Ya
+03   Transaksi Pending                          Pending    Ya
+40   Payload Error                              Gagal      Tidak
+41   Signature tidak valid                      Gagal      Tidak
+42   Username tidak valid                       Gagal      Tidak
+43   SKU tidak ditemukan/Non-Aktif              Gagal      Tidak
+44   Saldo tidak cukup                         Gagal      Tidak
+45   IP tidak dikenali                          Gagal      Tidak
+49   Ref ID tidak unik                          Gagal      Tidak
+50   Transaksi Tidak Ditemukan                  Gagal      Ya
+51   Nomor Tujuan Diblokir                      Gagal      Ya
+52   Prefix Tidak Sesuai Operator               Gagal      Ya
+53   Produk Seller Tidak Tersedia               Gagal      Ya
+54   Nomor Tujuan Salah                         Gagal      Ya
+55   Produk Sedang Gangguan                     Gagal      Ya
+57   Jumlah Digit Kurang/Lebih                  Gagal      Ya
+58   Sedang Cut Off                             Gagal      Ya
+60   Tagihan belum tersedia                     Gagal      Ya
+61   Belum pernah deposit                       Gagal      Tidak
+62   Seller sedang gangguan                     Gagal      Tidak
+64   Tarik tiket gagal                         Gagal      Tidak
+66   Cut Off (Perbaikan Sistem)                Gagal      Tidak
+67   Seller belum ter-verifikasi               Gagal      Tidak
+68   Stok habis                                Gagal      Tidak
+69   Harga seller lebih besar                   Gagal      Tidak
+70   Timeout Dari Biller                       Gagal      Ya
+80   Akun diblokir oleh Seller                 Gagal      Tidak
+81   Seller diblokir oleh Anda                  Gagal      Tidak
+82   Akun belum ter-verifikasi                 Gagal      Tidak
+83   Limitasi pricelist                         Gagal      Tidak
+84   Nominal tidak valid                        Gagal      Ya
+85   Limitasi transaksi                         Gagal      Ya
+86   Limitasi PLN inquiry                      Gagal      Ya
+87   E-money wajib kelipatan Rp 1.000          Gagal      Tidak
+99   DF Router Issue                           Pending    Ya
+
+
+================================================================================
+PRODUCT CODES (SKU) TEST
+================================================================================
+
+PULSA:
+---------
+TSEL5   - Telkomsel 5.000
+TSEL10  - Telkomsel 10.000
+TSEL25  - Telkomsel 25.000
+TSEL50  - Telkomsel 50.000
+TSEL100 - Telkomsel 100.000
+XL5     - XL 5.000
+XL10    - XL 10.000
+XL25    - XL 25.000
+XL50    - XL 50.000
+XL100   - XL 100.000
+IS5     - Indosat 5.000
+IS10    - Indosat 10.000
+IS25    - Indosat 25.000
+TRI5    - Tri 5.000
+TRI10   - Tri 10.000
+
+PASCABAYAR:
+-----------
+pln           - PLN Postpaid
+pdam          - PDAM
+internet      - Internet (Telkom, dll)
+bpjs          - BPJS Kesehatan
+multifinance  - Multifinance
+pgas          - GAS Negara / Pertagas
+tv            - TV (Kabel/Parabola)
+bpjstk        - BPJSTK (Tenaga Kerja)
+bpjstkpu      - BPJSTKPU (Penerima Upah)
+plnnontaglist - PLN Nontaglis
+pdl           - Pajak Daerah Lainnya
+emoney        - E-Money
+samsat        - SAMSAT
+hp            - HP / Lainnya
+
+
+================================================================================
+TEST CASES PASCABAYAR
+================================================================================
+
+PLN:
+  customer_no: 530000000001 - Sukses
+  customer_no: 530000000002 - Inquiry Gagal
+  customer_no: 530000000003 - Pembayaran Gagal
+
+BPJS:
+  customer_no: 8801234560001 - Sukses
+  customer_no: 8801234560002 - Inquiry Gagal
+  customer_no: 8801234560005 - Pembayaran Gagal
+  customer_no: 9801234560001 - Pending -> Sukses
+
+PDAM:
+  customer_no: 1013226 - Sukses
+  customer_no: 1013227 - Inquiry Gagal
+
+TV:
+  customer_no: 127246500101 - Sukses
+  customer_no: 127246500102 - Inquiry Gagal
+  customer_no: 227246500101 - Pending -> Sukses
+
+
+================================================================================
+QUICK TEST COMMANDS (BASH/LINUX)
+================================================================================
+
+# Cek Saldo (Development Key)
+SIGN=$(echo -n 'pehaduD7V7rodev-7e3c8000-6531-11ec-b233-31d3fcbe4c0edepo' | md5sum | cut -d' ' -f1)
+curl -X POST https://api.digiflazz.com/v1/cek-saldo \
+  -H "Content-Type: application/json" \
+  -d '{"cmd":"deposit","username":"pehaduD7V7ro","sign":"'$SIGN'"}'
+
+# Cek Saldo (Production Key)
+SIGN=$(echo -n 'pehaduD7V7ro3c737104-00a2-5561-b992-341577aa87f5depo' | md5sum | cut -d' ' -f1)
+curl -X POST https://api.digiflazz.com/v1/cek-saldo \
+  -H "Content-Type: application/json" \
+  -d '{"cmd":"deposit","username":"pehaduD7V7ro","sign":"'$SIGN'"}'
+
+# Beli Pulsa TSEL5 (Production)
+REF_ID="test_$(date +%s)"
+SIGN=$(echo -n 'pehaduD7V7ro3c737104-00a2-5561-b992-341577aa87f5'$REF_ID | md5sum | cut -d' ' -f1)
+curl -X POST https://api.digiflazz.com/v1/transaction \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "pehaduD7V7ro",
+    "buyer_sku_code": "TSEL5",
+    "customer_no": "085183059699",
+    "ref_id": "'$REF_ID'",
+    "sign": "'$SIGN'"
+  }'
+
+# Inquiry PLN
+REF_ID="inq_$(date +%s)"
+SIGN=$(echo -n 'pehaduD7V7ro3c737104-00a2-5561-b992-341577aa87f5'$REF_ID | md5sum | cut -d' ' -f1)
+curl -X POST https://api.digiflazz.com/v1/transaction \
+  -H "Content-Type: application/json" \
+  -d '{
+    "commands": "inq-pasca",
+    "username": "pehaduD7V7ro",
+    "buyer_sku_code": "pln",
+    "customer_no": "530000000001",
+    "ref_id": "'$REF_ID'",
+    "sign": "'$SIGN'"
+  }'
+
+
+================================================================================
+QUICK TEST COMMANDS (WINDOWS CMD/POWERSHELL)
+================================================================================
+
+# Cek Saldo
+set USERNAME=pehaduD7V7ro
+set APIKEY=3c737104-00a2-5561-b992-341577aa87f5
+set SIGN=<HITUNG MD5 DARI username+apikey+depo>
+
+curl -X POST https://api.digiflazz.com/v1/cek-saldo ^
+  -H "Content-Type: application/json" ^
+  -d "{\"cmd\":\"deposit\",\"username\":\"%USERNAME%\",\"sign\":\"%SIGN%\"}"
+
+# Beli Pulsa
+set REF_ID=test_%date:~-4%%time:~0,2%%time:~3,2%%time:~6,2%%random%
+set SIGN=<HITUNG MD5 DARI username+apikey+ref_id>
+
+curl -X POST https://api.digiflazz.com/v1/transaction ^
+  -H "Content-Type: application/json" ^
+  -d "{\"username\":\"%USERNAME%\",\"buyer_sku_code\":\"TSEL5\",\"customer_no\":\"085183059699\",\"ref_id\":\"%REF_ID%\",\"sign\":\"%SIGN%\"}"
+
+
+================================================================================
+PHP HELPER FUNCTION
+================================================================================
+
+<?php
+class DigiflazzAPI {
+    private $username;
+    private $apiKey;
+    private $apiUrl = 'https://api.digiflazz.com/v1';
+
+    public function __construct($username, $apiKey) {
+        $this->username = $username;
+        $this->apiKey = $apiKey;
+    }
+
+    private function generateSign($data) {
+        return md5($this->username . $this->apiKey . $data);
+    }
+
+    private function request($endpoint, $payload) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $this->apiUrl . '/' . $endpoint);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        $data = json_decode($response, true);
+        return $data['data'] ?? $data;
+    }
+
+    public function cekSaldo() {
+        $payload = [
+            'cmd' => 'deposit',
+            'username' => $this->username,
+            'sign' => $this->generateSign('depo')
+        ];
+        return $this->request('cek-saldo', $payload);
+    }
+
+    public function buyPulsa($sku, $customerNo, $refId) {
+        $payload = [
+            'username' => $this->username,
+            'buyer_sku_code' => $sku,
+            'customer_no' => $customerNo,
+            'ref_id' => $refId,
+            'sign' => $this->generateSign($refId)
+        ];
+        return $this->request('transaction', $payload);
+    }
+
+    public function inquiryPasca($buyerSkuCode, $customerNo, $refId) {
+        $payload = [
+            'commands' => 'inq-pasca',
+            'username' => $this->username,
+            'buyer_sku_code' => $buyerSkuCode,
+            'customer_no' => $customerNo,
+            'ref_id' => $refId,
+            'sign' => $this->generateSign($refId)
+        ];
+        return $this->request('transaction', $payload);
+    }
+
+    public function bayarPasca($buyerSkuCode, $customerNo, $refId) {
+        $payload = [
+            'commands' => 'pay-pasca',
+            'username' => $this->username,
+            'buyer_sku_code' => $buyerSkuCode,
+            'customer_no' => $customerNo,
+            'ref_id' => $refId,
+            'sign' => $this->generateSign($refId)
+        ];
+        return $this->request('transaction', $payload);
+    }
+}
+
+// Usage
+$api = new DigiflazzAPI('pehaduD7V7ro', '3c737104-00a2-5561-b992-341577aa87f5');
+
+// Cek Saldo
+$saldo = $api->cekSaldo();
+echo "Saldo: " . $saldo['deposit'];
+
+// Beli Pulsa
+$refId = 'ref_' . time();
+$result = $api->buyPulsa('TSEL5', '085183059699', $refId);
+print_r($result);
+
+
+================================================================================
+CATATAN PENTING
+================================================================================
+1. Pastikan IP server sudah di-whitelist di dashboard Digiflazz
+2. Untuk Development Mode, gunakan Development Key
+3. Untuk Production, gunakan Production Key
+4. Semua harga dalam mata uang Rupiah (IDR)
+5. ref_id harus UNIK untuk setiap transaksi
+6. Testing mode: tambahkan "testing": true untuk simulasi
+7. Webhook URL bisa diset di dashboard untuk callback otomatis
+
+Dashboard Digiflazz: https://member.digiflazz.com
+
+================================================================================
