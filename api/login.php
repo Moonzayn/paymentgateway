@@ -49,6 +49,7 @@ if ($user = $result->fetch_assoc()) {
         if ($has2FA || $force2FA) {
             // Need 2FA - return special response
             $_SESSION['2fa_user_id'] = $user['id'];
+            $_SESSION['2fa_required_user_id'] = $user['id']; // For cekLogin() bypass protection
             $_SESSION['2fa_pending'] = true;
             $_SESSION['2fa_username'] = $username;
 

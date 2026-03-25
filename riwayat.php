@@ -19,7 +19,7 @@ $filterJenis   = $_GET['jenis']   ?? '';
 $filterStatus  = $_GET['status']  ?? '';
 $filterTanggal = $_GET['tanggal'] ?? '';
 $filterBulan   = $_GET['bulan']   ?? '';
-$search       = $_GET['search']   ?? '';
+$search        = $_GET['search']   ?? '';
 
 // ═══ Query Transaksi ═══
 $where  = [];
@@ -52,15 +52,17 @@ if ($filterBulan) {
     $types   .= 's';
 }
 if ($search) {
-    $where[]  = "(t.no_invoice LIKE ? OR t.no_tujuan LIKE ?)";
+    $where[]  = "(t.no_invoice LIKE ? OR t.no_tujuan LIKE ? OR t.ref_id LIKE ? OR t.server_id LIKE ?)";
     $searchTerm = "%{$search}%";
     $params[] = $searchTerm;
     $params[] = $searchTerm;
-    $types   .= 'ss';
+    $params[] = $searchTerm;
+    $params[] = $searchTerm;
+    $types   .= 'ssss';
 }
 
 $whereClause = count($where) > 0 ? " WHERE " . implode(" AND ", $where) : "";
-$sql = "SELECT t.*, p.nama_produk, u.nama_lengkap
+$sql = "SELECT t.*, p.nama_produk, p.provider, u.nama_lengkap
         FROM transaksi t
         LEFT JOIN produk p ON t.produk_id = p.id
         LEFT JOIN users u  ON t.user_id   = u.id"
@@ -362,10 +364,10 @@ include 'layout.php';
             <form method="GET">
                 <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
                     <div class="lg:col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Cari Invoice / No. Tujuan</label>
+                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Cari</label>
                         <div class="relative">
                             <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                            <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" placeholder="No. Invoice atau No. HP..."
+                            <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" placeholder="Invoice, No. HP, Ref ID, atau SN..."
                                 class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                     </div>
@@ -449,14 +451,16 @@ include 'layout.php';
                     <tr class="table-header-row">
                         <?php if ($role == 'admin'): ?>
                         <th class="text-left">Invoice</th>
-                        <th class="text-left">User</th>
                         <?php endif; ?>
-                        <th class="text-left">Jenis</th>
-                        <th class="text-left">Produk</th>
-                        <th class="text-left">No. Tujuan</th>
-                        <th class="text-left">Total</th>
-                        <th class="text-left">Status</th>
                         <th class="text-left">Tanggal</th>
+                        <th class="text-left">Provider</th>
+                        <th class="text-left">No. Tujuan</th>
+                        <th class="text-left">Produk</th>
+                        <th class="text-left">Total</th>
+                        <th class="text-left">Ref ID</th>
+                        <th class="text-left">SN</th>
+                        <th class="text-left">Status</th>
+                        <th class="text-left">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -467,18 +471,41 @@ include 'layout.php';
                     <tr class="table-row">
                         <?php if ($role == 'admin'): ?>
                         <td class="font-mono text-xs text-gray-600 whitespace-nowrap"><?= htmlspecialchars($trx['no_invoice']) ?></td>
-                        <td class="whitespace-nowrap font-medium"><?= htmlspecialchars($trx['nama_lengkap']) ?></td>
                         <?php endif; ?>
-                        <td class="whitespace-nowrap">
-                            <span class="badge jenis-<?= $trx['jenis_transaksi'] ?>"><?= ucfirst($trx['jenis_transaksi']) ?></span>
+                        <td class="text-xs text-gray-500 whitespace-nowrap"><?= date('d/m/Y H:i', strtotime($trx['created_at'])) ?></td>
+                        <td class="text-xs whitespace-nowrap">
+                            <?php
+                            $provider = $trx['provider'] ?? '';
+                            $providerClass = '';
+                            if ($provider === 'Telkomsel') $providerClass = 'background:#e2001a;color:white;';
+                            elseif ($provider === 'XL') $providerClass = 'background:#009a0e;color:white;';
+                            elseif ($provider === 'Indosat') $providerClass = 'background:#ff9600;color:white;';
+                            elseif ($provider === 'Tri') $providerClass = 'background:#8b418b;color:white;';
+                            ?>
+                            <span style="<?= $providerClass ?: 'background:#f1f5f9;color:#64748b;' ?>padding:0.2rem 0.5rem;border-radius:999px;font-weight:600;font-size:0.7rem;">
+                                <?= htmlspecialchars($provider ?: $trx['jenis_transaksi']) ?>
+                            </span>
                         </td>
-                        <td class="max-w-[160px] truncate"><?= htmlspecialchars($trx['nama_produk'] ?? '-') ?></td>
                         <td class="font-mono text-xs whitespace-nowrap"><?= htmlspecialchars($trx['no_tujuan']) ?></td>
-                        <td class="font-semibold whitespace-nowrap"><?= rupiah($trx['total_bayar']) ?></td>
+                        <td class="max-w-[120px] truncate text-xs"><?= htmlspecialchars($trx['nama_produk'] ?? '-') ?></td>
+                        <td class="font-semibold whitespace-nowrap text-xs"><?= rupiah($trx['total_bayar']) ?></td>
+                        <td class="font-mono text-xs text-gray-500 whitespace-nowrap" title="Ref ID Digiflazz">
+                            <?= htmlspecialchars($trx['ref_id'] ?? '-') ?>
+                        </td>
+                        <td class="font-mono text-xs whitespace-nowrap" title="Serial Number">
+                            <?php
+                            $sn = $trx['server_id'] ?? '';
+                            echo $sn ? htmlspecialchars($sn) : '<span class="text-gray-300">-</span>';
+                            ?>
+                        </td>
                         <td class="whitespace-nowrap">
                             <span class="badge status-<?= $trx['status'] ?>"><?= ucfirst($trx['status']) ?></span>
                         </td>
-                        <td class="text-xs text-gray-500 whitespace-nowrap"><?= date('d/m/Y H:i', strtotime($trx['created_at'])) ?></td>
+                        <td class="whitespace-nowrap">
+                            <a href="detail_transaksi.php?id=<?= $trx['id'] ?>" class="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-medium transition" title="Lihat Detail">
+                                <i class="fas fa-eye"></i> Detail
+                            </a>
+                        </td>
                     </tr>
                 <?php endwhile; ?>
                 </tbody>
@@ -494,34 +521,45 @@ include 'layout.php';
             <div class="trx-card">
                 <div class="flex items-start justify-between mb-2">
                     <div class="flex items-center flex-wrap gap-1.5">
-                        <span class="badge jenis-<?= $trx['jenis_transaksi'] ?>"><?= ucfirst($trx['jenis_transaksi']) ?></span>
+                        <?php if ($role == 'admin'): ?>
+                        <span class="font-mono text-xs text-gray-600"><?= htmlspecialchars($trx['no_invoice']) ?></span>
+                        <?php endif; ?>
                         <span class="badge status-<?= $trx['status'] ?>"><?= ucfirst($trx['status']) ?></span>
                     </div>
                     <span class="font-bold text-sm text-blue-700 whitespace-nowrap"><?= rupiah($trx['total_bayar']) ?></span>
                 </div>
                 <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                    <?php if ($role == 'admin'): ?>
                     <div>
-                        <p class="text-gray-400">Invoice</p>
-                        <p class="font-mono text-gray-600 truncate"><?= htmlspecialchars($trx['no_invoice']) ?></p>
-                    </div>
-                    <div>
-                        <p class="text-gray-400">User</p>
-                        <p class="text-gray-700 truncate font-medium"><?= htmlspecialchars($trx['nama_lengkap']) ?></p>
-                    </div>
-                    <?php endif; ?>
-                    <div>
-                        <p class="text-gray-400">Produk</p>
-                        <p class="text-gray-700 truncate"><?= htmlspecialchars($trx['nama_produk'] ?? ucfirst($trx['jenis_transaksi'])) ?></p>
+                        <p class="text-gray-400">Provider</p>
+                        <p class="text-gray-700 font-medium"><?= htmlspecialchars($trx['provider'] ?: ucfirst($trx['jenis_transaksi'])) ?></p>
                     </div>
                     <div>
                         <p class="text-gray-400">No. Tujuan</p>
                         <p class="font-mono text-gray-700"><?= htmlspecialchars($trx['no_tujuan']) ?></p>
                     </div>
+                    <div>
+                        <p class="text-gray-400">Produk</p>
+                        <p class="text-gray-700 truncate"><?= htmlspecialchars($trx['nama_produk'] ?? '-') ?></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400">SN</p>
+                        <p class="font-mono text-gray-700 truncate"><?= htmlspecialchars($trx['server_id'] ?? '-') ?></p>
+                    </div>
+                    <?php if ($role == 'admin'): ?>
+                    <div class="col-span-2">
+                        <p class="text-gray-400">Ref ID</p>
+                        <p class="font-mono text-gray-600 truncate"><?= htmlspecialchars($trx['ref_id'] ?? '-') ?></p>
+                    </div>
+                    <?php endif; ?>
                 </div>
-                <p class="text-xs text-gray-400 mt-2 pt-2 border-t border-gray-100">
-                    <i class="fas fa-clock mr-1"></i><?= date('d M Y, H:i', strtotime($trx['created_at'])) ?>
-                </p>
+                <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                    <p class="text-xs text-gray-400">
+                        <i class="fas fa-clock mr-1"></i><?= date('d M Y, H:i', strtotime($trx['created_at'])) ?>
+                    </p>
+                    <a href="detail_transaksi.php?id=<?= $trx['id'] ?>" class="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-medium transition">
+                        <i class="fas fa-eye"></i> Detail
+                    </a>
+                </div>
             </div>
         <?php endwhile; ?>
         </div>
@@ -547,6 +585,208 @@ include 'layout.php';
 <!-- ═══════════════════════════════════════════
      RIWAYAT - JavaScript
 ═══════════════════════════════════════════ -->
+<script>
+// ═══════════════════════════════════════════
+// AUTO REFRESH PENDING TRANSACTIONS (AJAX POLLING)
+// ═══════════════════════════════════════════
+let pendingCheckInterval = null;
+let lastCheckTime = null;
+
+function getPendingTransactionIds() {
+    const ids = [];
+
+    // Desktop table rows
+    document.querySelectorAll('tr.table-row').forEach(row => {
+        const badge = row.querySelector('.badge.status-pending');
+        if (badge) {
+            const link = row.querySelector('a[href*="detail_transaksi.php"]');
+            if (link) {
+                const url = new URL(link.href, window.location.origin);
+                ids.push(url.searchParams.get('id'));
+            }
+        }
+    });
+
+    // Mobile cards
+    document.querySelectorAll('.trx-card').forEach(card => {
+        const badge = card.querySelector('.badge.status-pending');
+        if (badge) {
+            const link = card.querySelector('a[href*="detail_transaksi.php"]');
+            if (link) {
+                const url = new URL(link.href, window.location.origin);
+                ids.push(url.searchParams.get('id'));
+            }
+        }
+    });
+
+    return [...new Set(ids)]; // Remove duplicates
+}
+
+function checkPendingTransactions() {
+    const pendingIds = getPendingTransactionIds();
+
+    if (pendingIds.length === 0) {
+        stopPendingCheck();
+        return;
+    }
+
+    // Show checking indicator on all pending badges
+    document.querySelectorAll('.badge.status-pending').forEach(badge => {
+        badge.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i>';
+        badge.style.opacity = '0.6';
+    });
+
+    // Update last check indicator
+    if (lastCheckTime) {
+        const el = document.getElementById('lastCheckTime');
+        if (el) el.textContent = 'Mengecek...';
+    }
+
+    fetch('api_check_status.php?ids=' + pendingIds.join(','), {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+    })
+    .then(data => {
+        if (data.success && data.results) {
+            let changedCount = 0;
+            data.results.forEach(result => {
+                if (updatePendingRow(result)) changedCount++;
+            });
+
+            // Show toast if some changed
+            if (changedCount > 0) {
+                const successCount = data.results.filter(r => r.status === 'success').length;
+                if (successCount > 0) {
+                    showToast(`${successCount} transaksi berhasil!`, 'success');
+                }
+            }
+        }
+
+        // Update last check time
+        lastCheckTime = new Date();
+        const el = document.getElementById('lastCheckTime');
+        if (el) el.textContent = 'Terakhir cek: ' + formatTime(lastCheckTime);
+
+        // Reset badges
+        resetPendingBadges();
+
+        // Stop if no more pending
+        if (getPendingTransactionIds().length === 0) {
+            stopPendingCheck();
+            showToast('Semua transaksi pending sudah diproses!', 'success');
+        }
+    })
+    .catch(err => {
+        console.error('Check pending error:', err);
+        resetPendingBadges();
+        const el = document.getElementById('lastCheckTime');
+        if (el) el.textContent = 'Error koneksi, retry 30 detik lagi...';
+    });
+}
+
+function resetPendingBadges() {
+    document.querySelectorAll('.badge.status-pending').forEach(badge => {
+        badge.innerHTML = '<i class="fas fa-clock"></i> Pending';
+        badge.style.opacity = '1';
+    });
+}
+
+function updatePendingRow(result) {
+    let updated = false;
+
+    // Desktop row
+    document.querySelectorAll('tr.table-row').forEach(row => {
+        const link = row.querySelector(`a[href="detail_transaksi.php?id=${result.id}"]`);
+        if (!link) return;
+
+        const statusTd = row.querySelector('td:nth-child(7)');
+
+        if (result.status === 'success') {
+            if (statusTd) statusTd.innerHTML = '<span class="badge status-success"><i class="fas fa-check-circle"></i> Sukses</span>';
+            row.style.background = '#ecfdf5';
+            updated = true;
+        } else if (result.status === 'failed') {
+            if (statusTd) statusTd.innerHTML = '<span class="badge status-failed"><i class="fas fa-times-circle"></i> Gagal</span>';
+            row.style.background = '#fef2f2';
+            updated = true;
+        } else if (result.status === 'pending' && result.is_suspect) {
+            if (statusTd) statusTd.innerHTML = '<span class="badge" style="background:#fef3c7;color:#92400e;"><i class="fas fa-exclamation-triangle"></i> Suspect</span>';
+            updated = true;
+        }
+    });
+
+    // Mobile card
+    document.querySelectorAll('.trx-card').forEach(card => {
+        const link = card.querySelector(`a[href="detail_transaksi.php?id=${result.id}"]`);
+        if (!link) return;
+
+        const parent = card;
+        // Find badge container
+        const badgeEls = parent.querySelectorAll('.badge');
+        badgeEls.forEach(badge => {
+            if (result.status === 'success') {
+                if (badge.classList.contains('status-pending')) {
+                    badge.className = 'badge status-success';
+                    badge.innerHTML = '<i class="fas fa-check-circle"></i> Sukses';
+                }
+                parent.style.background = '#ecfdf5';
+                updated = true;
+            } else if (result.status === 'failed') {
+                if (badge.classList.contains('status-pending')) {
+                    badge.className = 'badge status-failed';
+                    badge.innerHTML = '<i class="fas fa-times-circle"></i> Gagal';
+                }
+                parent.style.background = '#fef2f2';
+                updated = true;
+            }
+        });
+    });
+
+    return updated;
+}
+
+function formatTime(date) {
+    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function startPendingCheck() {
+    if (pendingCheckInterval) return;
+    checkPendingTransactions();
+    pendingCheckInterval = setInterval(checkPendingTransactions, 30000);
+}
+
+function stopPendingCheck() {
+    if (pendingCheckInterval) {
+        clearInterval(pendingCheckInterval);
+        pendingCheckInterval = null;
+    }
+}
+
+// Start auto-check if there are pending transactions
+document.addEventListener('DOMContentLoaded', function() {
+    const hasPending = document.querySelectorAll('.badge.status-pending').length > 0;
+    if (hasPending) {
+        startPendingCheck();
+
+        // Add auto-refresh indicator
+        const header = document.querySelector('.card .px-4, .card .px-5');
+        if (header) {
+            const indicator = document.createElement('div');
+            indicator.id = 'autoRefreshBadge';
+            indicator.style.cssText = 'display:inline-flex;align-items:center;gap:0.5rem;padding:0.25rem 0.75rem;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:2rem;font-size:0.75rem;color:#065f46;font-weight:500;margin-left:auto;';
+            indicator.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Auto-refresh aktif <span id="lastCheckTime" style="color:#059669;font-weight:700;"></span>';
+            header.appendChild(indicator);
+        }
+    }
+
+    window.addEventListener('beforeunload', stopPendingCheck);
+});
+</script>
+
 <script>
 // ═══════════════════════════════════════════
 // FILTER TOGGLE (mobile)

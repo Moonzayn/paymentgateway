@@ -27,6 +27,11 @@ $kategori_id = $_GET['kategori_id'] ?? '';
 $provider = $_GET['provider'] ?? '';
 $status_filter = $_GET['status'] ?? '';
 
+// Pagination
+$per_page = isset($_GET['per_page']) ? max(10, min(100, intval($_GET['per_page']))) : 20;
+$current_page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$offset = ($current_page - 1) * $per_page;
+
 // Build query
 $where = [];
 $params = [];
@@ -59,19 +64,36 @@ if (!empty($status_filter)) {
 
 $whereClause = count($where) > 0 ? "WHERE " . implode(" AND ", $where) : "";
 
-$sql = "SELECT p.*, k.nama_kategori 
-        FROM produk p 
-        LEFT JOIN kategori_produk k ON p.kategori_id = k.id 
-        $whereClause 
-        ORDER BY p.kategori_id, p.provider, p.nominal";
-$stmt = $conn->prepare($sql);
+// Count total records
+$countSql = "SELECT COUNT(*) as total FROM produk p $whereClause";
+$countStmt = $conn->prepare($countSql);
+if (!empty($params)) {
+    $countStmt->bind_param($types, ...$params);
+}
+$countStmt->execute();
+$countResult = $countStmt->get_result()->fetch_assoc();
+$total_records = $countResult['total'];
+$total_pages = ceil($total_records / $per_page);
+
+$sql = "SELECT p.*, k.nama_kategori
+        FROM produk p
+        LEFT JOIN kategori_produk k ON p.kategori_id = k.id
+        $whereClause
+        ORDER BY p.kategori_id, p.provider, p.nominal
+        LIMIT ? OFFSET ?";
+$stmtProduk = $conn->prepare($sql);
 
 if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
+    $allParams = $params;
+    $allParams[] = $per_page;
+    $allParams[] = $offset;
+    $stmtProduk->bind_param($types . 'ii', ...$allParams);
+} else {
+    $stmtProduk->bind_param('ii', $per_page, $offset);
 }
 
-$stmt->execute();
-$produk = $stmt->get_result();
+$stmtProduk->execute();
+$produk = $stmtProduk->get_result();
 
 // Ambil semua provider unik
 $providers = $conn->query("SELECT DISTINCT provider FROM produk WHERE provider IS NOT NULL AND provider != '' ORDER BY provider");
@@ -113,8 +135,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         } else {
             // Insert produk
             $stmt = $conn->prepare("INSERT INTO produk (kode_produk, nama_produk, kategori_id, provider, nominal, harga_jual, harga_modal, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssisdddds", $kode_produk, $nama_produk, $kategori_id, $provider, $nominal, $harga_jual, $harga_modal, $status);
-            
+            $stmt->bind_param("ssisd ddds", $kode_produk, $nama_produk, $kategori_id, $provider, $nominal, $harga_jual, $harga_modal, $status);
+
             if ($stmt->execute()) {
                 setAlert('success', 'Produk berhasil ditambahkan!');
             } else {
@@ -165,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         } else {
             // Update produk
             $stmt = $conn->prepare("UPDATE produk SET kode_produk = ?, nama_produk = ?, kategori_id = ?, provider = ?, nominal = ?, harga_jual = ?, harga_modal = ?, status = ? WHERE id = ?");
-            $stmt->bind_param("ssisddddsi", $kode_produk, $nama_produk, $kategori_id, $provider, $nominal, $harga_jual, $harga_modal, $status, $produk_id);
+            $stmt->bind_param("ssisddssi", $kode_produk, $nama_produk, $kategori_id, $provider, $nominal, $harga_jual, $harga_modal, $status, $produk_id);
             
             if ($stmt->execute()) {
                 setAlert('success', 'Produk berhasil diperbarui!');
@@ -604,6 +626,77 @@ include 'layout.php';
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
+/* ── Bulk Action Bar ── */
+.bulk-action-bar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    background: linear-gradient(135deg, #1e293b, #334155);
+    color: white;
+    padding: 0.875rem 1.25rem;
+    border-radius: 0.875rem;
+    margin-bottom: 1rem;
+    animation: slideDown 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.bulk-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.bulk-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.bulk-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.875rem;
+    border-radius: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.bulk-btn:hover { transform: translateY(-1px); opacity: 0.9; }
+.bulk-btn:active { transform: scale(0.97); }
+.bulk-btn-active { background: #22c55e; color: white; }
+.bulk-btn-inactive { background: #f59e0b; color: white; }
+.bulk-btn-price { background: #6366f1; color: white; }
+.bulk-btn-delete { background: #ef4444; color: white; }
+.bulk-btn-clear { background: rgba(255,255,255,0.15); color: white; }
+
+/* Bulk Price Modal */
+.bulk-price-modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+    justify-content: center;
+    align-items: center;
+}
+.bulk-price-modal.active { display: flex; }
+.bulk-price-content {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+    animation: slideUp 0.3s ease;
+}
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
 /* ── Table ── */
 .table-header-row th {
     background: #f8fafc;
@@ -932,10 +1025,38 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
     </div>
     
     <?php if ($produk->num_rows > 0): ?>
+    <!-- Bulk Action Bar -->
+    <div id="bulkActionBar" style="display:none;" class="bulk-action-bar">
+        <div class="bulk-info">
+            <i class="fas fa-check-square"></i>
+            <span id="selectedCount">0</span> produk dipilih
+        </div>
+        <div class="bulk-buttons">
+            <button type="button" onclick="bulkAction('active')" class="bulk-btn bulk-btn-active">
+                <i class="fas fa-check"></i> Aktifkan
+            </button>
+            <button type="button" onclick="bulkAction('inactive')" class="bulk-btn bulk-btn-inactive">
+                <i class="fas fa-ban"></i> Nonaktifkan
+            </button>
+            <button type="button" onclick="showBulkPriceModal()" class="bulk-btn bulk-btn-price">
+                <i class="fas fa-tag"></i> Update Harga
+            </button>
+            <button type="button" onclick="bulkAction('delete')" class="bulk-btn bulk-btn-delete">
+                <i class="fas fa-trash"></i> Hapus
+            </button>
+            <button type="button" onclick="clearSelection()" class="bulk-btn bulk-btn-clear">
+                <i class="fas fa-times"></i> Clear
+            </button>
+        </div>
+    </div>
+
     <div class="overflow-x-auto">
         <table class="w-full">
             <thead>
                 <tr class="table-header-row">
+                    <th style="width:40px;">
+                        <input type="checkbox" id="selectAll" onclick="toggleAll(this)" style="width:18px;height:18px;cursor:pointer;">
+                    </th>
                     <th class="text-left">ID</th>
                     <th class="text-left">Produk</th>
                     <th class="text-left">Kategori</th>
@@ -955,6 +1076,9 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
                     if ($p['kategori_id'] == 3) $category_class = 'category-listrik';
                 ?>
                 <tr class="table-row <?= $category_class ?>">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <input type="checkbox" class="produk-check" value="<?= $p['id'] ?>" onclick="updateBulkBar()">
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#<?= $p['id'] ?></td>
                     <td class="px-6 py-4">
                         <div class="flex items-center">
@@ -1034,6 +1158,69 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
             </tbody>
         </table>
     </div>
+
+    <!-- Pagination -->
+    <?php if ($total_pages > 1): ?>
+    <div class="pagination-wrapper">
+        <div class="pagination-info">
+            Menampilkan <?= $offset + 1 ?> - <?= min($offset + $per_page, $total_records) ?> dari <?= $total_records ?> produk
+        </div>
+        <div class="pagination">
+            <?php
+            // Build pagination URL with existing filters
+            $paginationUrl = function($page) use ($search, $kategori_id, $provider, $status_filter, $per_page) {
+                $params = [];
+                if ($search) $params[] = "search=" . urlencode($search);
+                if ($kategori_id) $params[] = "kategori_id=" . urlencode($kategori_id);
+                if ($provider) $params[] = "provider=" . urlencode($provider);
+                if ($status_filter) $params[] = "status=" . urlencode($status_filter);
+                if ($per_page != 20) $params[] = "per_page=" . $per_page;
+                $params[] = "page=" . $page;
+                return "?" . implode("&", $params);
+            };
+
+            // Show max 5 page numbers around current page
+            $start = max(1, $current_page - 2);
+            $end = min($total_pages, $current_page + 2);
+
+            if ($current_page > 1):
+            ?>
+                <a href="<?= $paginationUrl(1) ?>" class="page-btn" title="First">
+                    <i class="fas fa-angle-double-left"></i>
+                </a>
+                <a href="<?= $paginationUrl($current_page - 1) ?>" class="page-btn" title="Previous">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            <?php endif; ?>
+
+            <?php for ($i = $start; $i <= $end; $i++): ?>
+                <?php if ($i == $current_page): ?>
+                    <span class="page-btn active"><?= $i ?></span>
+                <?php else: ?>
+                    <a href="<?= $paginationUrl($i) ?>" class="page-btn"><?= $i ?></a>
+                <?php endif; ?>
+            <?php endfor; ?>
+
+            <?php if ($current_page < $total_pages): ?>
+                <a href="<?= $paginationUrl($current_page + 1) ?>" class="page-btn" title="Next">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+                <a href="<?= $paginationUrl($total_pages) ?>" class="page-btn" title="Last">
+                    <i class="fas fa-angle-double-right"></i>
+                </a>
+            <?php endif; ?>
+        </div>
+        <div class="pagination-per-page">
+            <label>Per page:</label>
+            <select onchange="window.location.href='?<?= http_build_query(array_merge($_GET, ['per_page' => ''])) ?>' + this.value + '&page=1'">
+                <?php foreach ([10, 20, 50, 100] as $limit): ?>
+                    <option value="<?= $limit ?>" <?= $per_page == $limit ? 'selected' : '' ?>><?= $limit ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <?php else: ?>
     <div class="p-12 text-center">
         <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -1629,9 +1816,206 @@ document.querySelector('.hide-mobile input[name="search"]')?.addEventListener('i
         this.closest('form').submit();
     }, 500);
 });
+
+// ═══════════════════════════════════════════
+// BULK ACTIONS
+// ═══════════════════════════════════════════
+function toggleAll(source) {
+    document.querySelectorAll('.produk-check').forEach(cb => cb.checked = source.checked);
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    const checked = document.querySelectorAll('.produk-check:checked');
+    const bar = document.getElementById('bulkActionBar');
+    const count = document.getElementById('selectedCount');
+    bar.style.display = checked.length > 0 ? 'flex' : 'none';
+    count.textContent = checked.length;
+
+    // Update select all checkbox state
+    const allCbs = document.querySelectorAll('.produk-check');
+    const selectAll = document.getElementById('selectAll');
+    if (allCbs.length > 0) {
+        selectAll.checked = checked.length === allCbs.length;
+        selectAll.indeterminate = checked.length > 0 && checked.length < allCbs.length;
+    }
+}
+
+function clearSelection() {
+    document.querySelectorAll('.produk-check').forEach(cb => cb.checked = false);
+    updateBulkBar();
+}
+
+async function bulkAction(action) {
+    const checked = document.querySelectorAll('.produk-check:checked');
+    if (checked.length === 0) return;
+
+    const ids = Array.from(checked).map(cb => cb.value);
+    const csrf = document.querySelector('input[name="csrf_token"]').value;
+
+    const messages = {
+        'active': 'mengaktifkan',
+        'inactive': 'menonaktifkan',
+        'delete': 'menghapus'
+    };
+
+    if (action === 'delete') {
+        if (!confirm(`Yakin ingin menghapus ${ids.length} produk?\n\nProduk yang sudah memiliki transaksi tidak bisa dihapus.`)) {
+            return;
+        }
+    } else {
+        if (!confirm(`${messages[action]} ${ids.length} produk?`)) {
+            return;
+        }
+    }
+
+    const formData = new FormData();
+    formData.append('ids', ids.join(','));
+    formData.append('action', action);
+    formData.append('csrf_token', csrf);
+
+    try {
+        const response = await fetch('api_bulk_produk.php', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message, 'success');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showToast(data.message || 'Terjadi kesalahan', 'error');
+        }
+    } catch (err) {
+        showToast('Gagal terhubung ke server', 'error');
+        console.error(err);
+    }
+}
+
+// Bulk Price Modal
+function showBulkPriceModal() {
+    const checked = document.querySelectorAll('.produk-check:checked');
+    if (checked.length === 0) {
+        showToast('Pilih produk terlebih dahulu', 'error');
+        return;
+    }
+    document.getElementById('bulkPriceModal').classList.add('active');
+    document.getElementById('bulkPriceCount').textContent = checked.length;
+}
+
+function closeBulkPriceModal() {
+    document.getElementById('bulkPriceModal').classList.remove('active');
+}
+
+async function submitBulkPrice() {
+    const checked = document.querySelectorAll('.produk-check:checked');
+    if (checked.length === 0) return;
+
+    const ids = Array.from(checked).map(cb => cb.value);
+    const csrf = document.querySelector('input[name="csrf_token"]').value;
+    const increaseType = document.getElementById('bulkIncreaseType').value;
+    const increaseValue = parseFloat(document.getElementById('bulkIncreaseValue').value);
+    const updateField = document.getElementById('bulkUpdateField').value;
+
+    if (!increaseValue || increaseValue <= 0) {
+        showToast('Masukkan nilai yang valid', 'error');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('ids', ids.join(','));
+    formData.append('action', 'update_price');
+    formData.append('csrf_token', csrf);
+    formData.append('increase_type', increaseType);
+    formData.append('increase_value', increaseValue);
+    formData.append('update_field', updateField);
+
+    try {
+        const response = await fetch('api_bulk_produk.php', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message, 'success');
+            closeBulkPriceModal();
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showToast(data.message || 'Terjadi kesalahan', 'error');
+        }
+    } catch (err) {
+        showToast('Gagal terhubung ke server', 'error');
+        console.error(err);
+    }
+}
 </script>
 
-<?php 
+<?php
 include 'layout_footer.php';
 $conn->close();
 ?>
+
+<!-- Bulk Price Update Modal -->
+<div class="bulk-price-modal" id="bulkPriceModal">
+    <div class="bulk-price-content">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+            <h3 style="font-size:1.1rem;font-weight:700;color:#1e293b;">
+                <i class="fas fa-tag" style="color:#6366f1;margin-right:0.5rem;"></i>Update Harga Bulk
+            </h3>
+            <button onclick="closeBulkPriceModal()" style="background:none;border:none;cursor:pointer;font-size:1.25rem;color:#94a3b8;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <p style="font-size:0.875rem;color:#64748b;margin-bottom:1.25rem;">
+            <span id="bulkPriceCount">0</span> produk dipilih
+        </p>
+
+        <div style="space-y:1rem;">
+            <div>
+                <label style="display:block;font-size:0.813rem;font-weight:600;color:#374151;margin-bottom:0.375rem;">Tipe Update</label>
+                <select id="bulkUpdateField" style="width:100%;padding:0.625rem;border:1px solid #e2e8f0;border-radius:0.5rem;font-size:0.875rem;">
+                    <option value="harga_jual">Harga Jual</option>
+                    <option value="harga_modal">Harga Modal</option>
+                    <option value="both">Keduanya</option>
+                </select>
+            </div>
+
+            <div>
+                <label style="display:block;font-size:0.813rem;font-weight:600;color:#374151;margin-bottom:0.375rem;">Metode</label>
+                <select id="bulkIncreaseType" style="width:100%;padding:0.625rem;border:1px solid #e2e8f0;border-radius:0.5rem;font-size:0.875rem;">
+                    <option value="percent">Persen (%)</option>
+                    <option value="fixed">Nominal Tetap (Rp)</option>
+                </select>
+            </div>
+
+            <div>
+                <label style="display:block;font-size:0.813rem;font-weight:600;color:#374151;margin-bottom:0.375rem;">Nilai</label>
+                <input type="number" id="bulkIncreaseValue" placeholder="Contoh: 5 atau 1000" min="0" step="any"
+                    style="width:100%;padding:0.625rem;border:1px solid #e2e8f0;border-radius:0.5rem;font-size:0.875rem;">
+            </div>
+        </div>
+
+        <div style="display:flex;gap:0.75rem;margin-top:1.5rem;">
+            <button onclick="closeBulkPriceModal()" style="flex:1;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:white;color:#64748b;font-weight:600;cursor:pointer;">
+                Batal
+            </button>
+            <button onclick="submitBulkPrice()" style="flex:1;padding:0.75rem;border:none;border-radius:0.5rem;background:#6366f1;color:white;font-weight:600;cursor:pointer;">
+                <i class="fas fa-save"></i> Update
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Close modal on outside click
+document.getElementById('bulkPriceModal').addEventListener('click', function(e) {
+    if (e.target === this) closeBulkPriceModal();
+});
+// Close on Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeBulkPriceModal();
+});
+</script>
