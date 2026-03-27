@@ -9,18 +9,6 @@
  */
 
 // ─── Konfigurasi ────────────────────────────────────────────────────────────
-// Untuk development (local), coment baris remote dan uncomment baris local.
-// Untuk hosting/remote, comment baris local dan uncomment baris remote.
-
-// Local (Laragon)
-// $config = [
-//     'host'     => '127.0.0.1',
-//     'user'     => 'root',
-//     'pass'     => '',
-//     'database' => 'db_ppob',
-// ];
-
-// Remote / Hosting
 $config = [
     'host'     => 'localhost',
     'user'     => 'crocomyi_root',
