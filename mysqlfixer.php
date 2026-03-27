@@ -29,6 +29,13 @@ $config = [
 ];
 
 // ─── Helper ─────────────────────────────────────────────────────────────────
+function esc($conn, $v) { return "'" . $conn->real_escape_string($v) . "'"; }
+function escVals($conn, $arr) {
+    $out = [];
+    foreach ($arr as $v) { $out[] = esc($conn, $v); }
+    return $out;
+}
+
 function msg($type, $text) {
     $icons = ['ok' => '✅', 'warn' => '⚠️', 'err' => '❌', 'info' => 'ℹ️', 'skip' => '➡️'];
     echo $icons[$type] . " $text\n";
@@ -71,7 +78,7 @@ function seedRow($conn, $table, $uniqueCol, $uniqueVal, $data) {
         return false; // already exists
     }
     $cols = implode(', ', array_keys($data));
-    $vals = implode(', ', array_map(fn($v) => "'" . $conn->real_escape_string($v) . "'", $data));
+    $vals = implode(', ', escVals($conn, $data));
     $conn->query("INSERT INTO `$table` ($cols) VALUES ($vals)");
     return true;
 }
@@ -333,7 +340,7 @@ foreach ($aggregatorSeed as $agg) {
         msg('skip', "Aggregator '{$agg['name']}' — updated.");
     } else {
         $cols = implode(', ', array_keys($agg));
-        $vals = implode(', ', array_map(fn($v) => "'" . $conn->real_escape_string($v) . "'", $agg));
+        $vals = implode(', ', escVals($conn, $agg));
         $conn->query("INSERT INTO `aggregators` ($cols) VALUES ($vals)");
         msg('ok', "Aggregator '{$agg['name']}' — inserted.");
     }
