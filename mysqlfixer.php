@@ -57,6 +57,17 @@ function colExists($conn, $table, $column) {
     return $r && $r->num_rows > 0;
 }
 
+function colIsAutoIncrement($conn, $table, $column) {
+    $r = $conn->query("SELECT EXTRA FROM information_schema.COLUMNS
+                        WHERE TABLE_SCHEMA = DATABASE()
+                          AND TABLE_NAME = '$table'
+                          AND COLUMN_NAME = '$column'");
+    if ($r && $row = $r->fetch_assoc()) {
+        return strpos($row['EXTRA'], 'auto_increment') !== false;
+    }
+    return false;
+}
+
 function tableExists($conn, $table) {
     $r = $conn->query("SELECT 1 FROM information_schema.TABLES
                         WHERE TABLE_SCHEMA = DATABASE()
@@ -161,6 +172,14 @@ foreach ($produkCols as $col => $alter) {
     }
 }
 
+// Fix AUTO_INCREMENT on produk.id
+if (!colIsAutoIncrement($conn, 'produk', 'id')) {
+    $conn->query("ALTER TABLE `produk` MODIFY COLUMN `id` INT NOT NULL AUTO_INCREMENT");
+    msg('ok', "Column `produk.id` set to AUTO_INCREMENT.");
+} else {
+    msg('skip', "Column `produk.id` is already AUTO_INCREMENT.");
+}
+
 // ─── 2. product_pricing table ───────────────────────────────────────────────
 echo "\n═══ TABLE: product_pricing ═══\n";
 
@@ -204,6 +223,14 @@ foreach ($ppCols as $col => $alter) {
     } else {
         msg('skip', "Column `product_pricing.$col` already exists.");
     }
+}
+
+// Fix AUTO_INCREMENT on product_pricing.id
+if (!colIsAutoIncrement($conn, 'product_pricing', 'id')) {
+    $conn->query("ALTER TABLE `product_pricing` MODIFY COLUMN `id` INT NOT NULL AUTO_INCREMENT");
+    msg('ok', "Column `product_pricing.id` set to AUTO_INCREMENT.");
+} else {
+    msg('skip', "Column `product_pricing.id` is already AUTO_INCREMENT.");
 }
 
 // Add FK constraint
@@ -290,6 +317,14 @@ foreach ($kategoriSeed as $kat) {
     }
 }
 
+// Fix AUTO_INCREMENT on kategori_produk.id
+if (!colIsAutoIncrement($conn, 'kategori_produk', 'id')) {
+    $conn->query("ALTER TABLE `kategori_produk` MODIFY COLUMN `id` INT NOT NULL AUTO_INCREMENT");
+    msg('ok', "Column `kategori_produk.id` set to AUTO_INCREMENT.");
+} else {
+    msg('skip', "Column `kategori_produk.id` is already AUTO_INCREMENT.");
+}
+
 // ─── 4. aggregators table ───────────────────────────────────────────────────
 echo "\n═══ TABLE: aggregators ═══\n";
 
@@ -312,6 +347,14 @@ if (!tableExists($conn, 'aggregators')) {
     msg('ok', "Table `aggregators` created.");
 } else {
     msg('skip', "Table `aggregators` already exists.");
+}
+
+// Fix AUTO_INCREMENT on aggregators.id
+if (!colIsAutoIncrement($conn, 'aggregators', 'id')) {
+    $conn->query("ALTER TABLE `aggregators` MODIFY COLUMN `id` INT NOT NULL AUTO_INCREMENT");
+    msg('ok', "Column `aggregators.id` set to AUTO_INCREMENT.");
+} else {
+    msg('skip', "Column `aggregators.id` is already AUTO_INCREMENT.");
 }
 
 $aggregatorSeed = [
