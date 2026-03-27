@@ -57,15 +57,18 @@ switch ($action) {
         $stmt->bind_param($types, ...$idArray);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
 
         if ($result['cnt'] > 0) {
             apiError('Tidak dapat menghapus produk yang sudah memiliki transaksi.', 'HAS_TRANSACTIONS', 400);
         }
 
+        // product_pricing ikut terhapus via FK CASCADE
         $stmt = $conn->prepare("DELETE FROM produk WHERE id IN ($placeholders)");
         $stmt->bind_param($types, ...$idArray);
         $stmt->execute();
         $deleted = $stmt->affected_rows;
+        $stmt->close();
         apiSuccess(null, "$deleted produk berhasil dihapus.");
 
     case 'update_price':

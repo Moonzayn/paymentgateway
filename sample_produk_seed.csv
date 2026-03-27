@@ -1,0 +1,24 @@
+kategori,kode_produk,nama_produk,provider,nominal,harga_jual,harga_modal,status
+pulsa,TELKOMSEL_10K,Telkomsel Pulsa 10K,Telkomsel,10000,12500,10500,active
+pulsa,TELKOMSEL_20K,Telkomsel Pulsa 20K,Telkomsel,20000,22000,20000,active
+pulsa,XL_10K,XL Pulsa 10K,XL,10000,12500,10600,active
+pulsa,XL_25K,XL Pulsa 25K,XL,25000,27000,25500,active
+pulsa,AXIS_5K,Axis Pulsa 5K,Axis,5000,8000,6500,active
+pulsa,INDOSAT_10K,Indosat Pulsa 10K,Indosat,10000,13000,10800,active
+kuota,TSEL_10GB,Telkomsel Kuota 10 GB,Telkomsel,10 GB,55000,48500,active
+kuota,TSEL_25GB,Telkomsel Kuota 25 GB,Telkomsel,25 GB,120000,105000,active
+kuota,XL_15GB,XL Kuota 15 GB,XL,15 GB,65000,57000,active
+kuota,AXIS_20GB,Axis Kuota 20 GB,Axis,20 GB,60000,52000,active
+kuota,INDOSAT_8GB,Indosat Kuota 8 GB,Indosat,8 GB,45000,38000,active
+game,ML_86,Mobile Legends 86 Diamond,Google Play,86,14500,12500,active
+game,ML_172,Mobile Legends 172 Diamond,Google Play,172,28500,25000,active
+game,FF_50,Free Fire 50 Diamond,Google Play,50,8500,7200,active
+game,FF_100,Free Fire 100 Diamond,Google Play,100,16500,14200,active
+game,PUBG_60,PUBG Mobile 60 UC,Google Play,60,12000,10200,active
+listrik,PLN_20K,Token Listrik PLN 20.000,PLN,20000,22500,21000,active
+listrik,PLN_50K,Token Listrik PLN 50.000,PLN,50000,52500,50500,active
+listrik,PLN_100K,Token Listrik PLN 100.000,PLN,100000,103000,101000,active
+transfer,BCA_1JT,Transfer BCA 1 Juta,BCA,1000000,7000,6000,active
+transfer,MANDIRI_1JT,Transfer Mandiri 1 Juta,Mandiri,1000000,7000,6000,active
+pulsa,THREE_10K,Three Pulsa 10K,Three,10000,12000,10000,inactive
+kuota,THREE_5GB,Three Kuota 5 GB,Three,5 GB,35000,29000,inactive

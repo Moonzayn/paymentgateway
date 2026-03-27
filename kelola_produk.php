@@ -1,22 +1,22 @@
 <?php
 require_once 'config.php';
 cekLogin();
-
-// Hanya admin yang bisa mengakses
-if ($_SESSION['role'] != 'admin') {
-    header("Location: index.php");
-    exit;
-}
+cekAdminAtauSuperadmin();
 
 $conn = koneksi();
 $id_user = $_SESSION['user_id'];
+
+// Ambil semua aggregator aktif — harus di atas sebelum $additionalHeadScripts
+$aggResult = $conn->query("SELECT name, label FROM aggregators WHERE is_active = 'yes' ORDER BY is_default DESC, name ASC");
+$aggOptionsJson = json_encode(array_values($aggResult->fetch_all(MYSQLI_ASSOC)));
+$aggResult->data_seek(0);
 
 // ═══ Layout Variables ═══
 $pageTitle   = 'Kelola Produk';
 $pageIcon    = 'fas fa-box';
 $pageDesc    = 'Kelola produk pulsa, kuota, dan listrik';
 $currentPage = 'kelola_produk';
-$additionalHeadScripts = ''; // Tidak perlu script tambahan
+$additionalHeadScripts = '<script>window.AGGREGATOR_OPTIONS = ' . $aggOptionsJson . ';</script>' . "\n";
 
 // Ambil semua kategori
 $kategori = $conn->query("SELECT * FROM kategori_produk WHERE status = 'active' ORDER BY nama_kategori");
@@ -75,10 +75,17 @@ $countResult = $countStmt->get_result()->fetch_assoc();
 $total_records = $countResult['total'];
 $total_pages = ceil($total_records / $per_page);
 
-$sql = "SELECT p.*, k.nama_kategori
+$sql = "SELECT p.*, k.nama_kategori,
+            GROUP_CONCAT(
+                CONCAT_WS('|', pp.aggregator, pp.harga_modal, pp.harga_jual, pp.is_active)
+                ORDER BY pp.id
+                SEPARATOR ';;'
+            ) AS pricing_mappings
         FROM produk p
         LEFT JOIN kategori_produk k ON p.kategori_id = k.id
+        LEFT JOIN product_pricing pp ON pp.product_id = p.id
         $whereClause
+        GROUP BY p.id
         ORDER BY p.kategori_id, p.provider, p.nominal
         LIMIT ? OFFSET ?";
 $stmtProduk = $conn->prepare($sql);
@@ -100,47 +107,136 @@ $providers = $conn->query("SELECT DISTINCT provider FROM produk WHERE provider I
 
 // Tambah produk baru
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'add') {
-    // Validasi CSRF token
     $csrf_token = $_POST['csrf_token'] ?? '';
     if (!validateCSRFToken($csrf_token)) {
         setAlert('error', 'Sesi tidak valid. Silakan refresh halaman.');
         header("Location: kelola_produk.php");
         exit;
     }
-    
+
     $kode_produk = trim($_POST['kode_produk'] ?? '');
     $nama_produk = trim($_POST['nama_produk'] ?? '');
     $kategori_id = intval($_POST['kategori_id'] ?? 0);
     $provider = trim($_POST['provider'] ?? '');
-    $nominal = floatval($_POST['nominal'] ?? 0);
+    $source_aggregator = trim($_POST['source_aggregator'] ?? 'digiflazz');
+    $nominal_input = trim($_POST['nominal'] ?? '');
     $harga_jual = floatval($_POST['harga_jual'] ?? 0);
-    $harga_modal = floatval($_POST['harga_modal'] ?? 0);
     $status = $_POST['status'] ?? 'active';
-    
+
+    // Parse nominal: value + display string
+    $parsedNominal = parseNominalValue($nominal_input, $kategori_id);
+    $nominal_value = $parsedNominal['value'];
+    $nominal_display = $parsedNominal['display'];
+
     // Validasi
     if (empty($kode_produk) || empty($nama_produk) || $kategori_id == 0) {
         setAlert('error', 'Kode, Nama, dan Kategori wajib diisi!');
-    } elseif ($nominal <= 0 || $harga_jual <= 0 || $harga_modal <= 0) {
-        setAlert('error', 'Nominal dan harga harus lebih dari 0!');
-    } elseif ($harga_jual < $harga_modal) {
-        setAlert('error', 'Harga jual harus lebih besar atau sama dengan harga modal!');
+    } elseif (empty($nominal_input)) {
+        setAlert('error', 'Nominal wajib diisi!');
+    } elseif ($harga_jual <= 0) {
+        setAlert('error', 'Harga jual harus lebih dari 0!');
     } else {
-        // Cek apakah kode produk sudah ada
+        // Cek apakah kode_produk sudah ada
         $checkStmt = $conn->prepare("SELECT id FROM produk WHERE kode_produk = ?");
         $checkStmt->bind_param("s", $kode_produk);
         $checkStmt->execute();
-        
+
         if ($checkStmt->get_result()->num_rows > 0) {
             setAlert('error', 'Kode produk sudah digunakan!');
         } else {
-            // Insert produk
-            $stmt = $conn->prepare("INSERT INTO produk (kode_produk, nama_produk, kategori_id, provider, nominal, harga_jual, harga_modal, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssisd ddds", $kode_produk, $nama_produk, $kategori_id, $provider, $nominal, $harga_jual, $harga_modal, $status);
+            // Validasi minimal 1 mapping aggregator
+            $hasValidMapping = false;
+            foreach ($_POST as $key => $val) {
+                if (preg_match('/^mapping_aggregator_sku_(\d+)$/', $key, $m)) {
+                    $idx = $m[1];
+                    $aggSku = trim($_POST["mapping_aggregator_sku_$idx"] ?? '');
+                    $aggModal = floatval($_POST["mapping_harga_modal_$idx"] ?? 0);
+                    if (!empty($aggSku) && $aggModal > 0) {
+                        $hasValidMapping = true;
+                        break;
+                    }
+                }
+            }
 
-            if ($stmt->execute()) {
-                setAlert('success', 'Produk berhasil ditambahkan!');
+            if (!$hasValidMapping) {
+                setAlert('error', 'Minimal 1 mapping aggregator wajib diisi (kode & harga modal)!');
             } else {
-                setAlert('error', 'Gagal menambahkan produk!');
+                $conn->begin_transaction();
+                try {
+                    // Insert produk
+                    $harga_modal = $harga_jual; // default, akan diupdate dari pricing
+                    $stmt = $conn->prepare("INSERT INTO produk (kode_produk, nama_produk, kategori_id, provider, source_aggregator, nominal, nominal_display, harga_jual, harga_modal, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->bind_param("ssisssddds", $kode_produk, $nama_produk, $kategori_id, $provider, $source_aggregator, $nominal_value, $nominal_display, $harga_jual, $harga_modal, $status);
+                    $stmt->execute();
+                    $newProdukId = $conn->insert_id;
+                    $stmt->close();
+
+                    // Insert semua mapping aggregator
+                    $providerNorm = $provider;
+
+                    $insertedMapping = 0;
+                    $minHargaModal = $harga_jual;
+                    $mappingDebug = [];
+                    
+                    foreach ($_POST as $key => $val) {
+                        if (preg_match('/^mapping_aggregator_sku_(\d+)$/', $key, $m)) {
+                            $idx = $m[1];
+                            $aggSku = trim($_POST["mapping_aggregator_sku_$idx"] ?? '');
+                            $aggModal = floatval($_POST["mapping_harga_modal_$idx"] ?? 0);
+                            $aggName = trim($_POST["mapping_aggregator_$idx"] ?? '');
+                            $aggSeller = trim($_POST["mapping_seller_name_$idx"] ?? 'default');
+                            
+                            $mappingDebug[] = "idx=$idx, sku=$aggSku, modal=$aggModal, agg=$aggName";
+                            
+                            if (empty($aggSku) || $aggModal <= 0) {
+                                $mappingDebug[] = "SKIPPED: empty sku or modal";
+                                continue;
+                            }
+
+                            $stmt2 = $conn->prepare("
+                                INSERT INTO product_pricing (product_id, sku_code, provider, aggregator, aggregator_sku, seller_name, harga_modal, harga_jual, is_active)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ON DUPLICATE KEY UPDATE
+                                    aggregator_sku = VALUES(aggregator_sku),
+                                    harga_modal = VALUES(harga_modal),
+                                    harga_jual = VALUES(harga_jual),
+                                    is_active = VALUES(is_active)
+                            ");
+                            $isActive = 'yes';
+                            $stmt2->bind_param("isssssdds", $newProdukId, $kode_produk, $providerNorm, $aggName, $aggSku, $aggSeller, $aggModal, $harga_jual, $isActive);
+                            
+                            if ($stmt2->execute()) {
+                                $insertedMapping++;
+                                $mappingDebug[] = "INSERTED: $aggName - $aggSku";
+                            } else {
+                                $mappingDebug[] = "FAILED: " . $stmt2->error;
+                            }
+                            $stmt2->close();
+
+                            // Track minimum harga_modal
+                            if ($aggModal < $minHargaModal) {
+                                $minHargaModal = $aggModal;
+                            }
+                        }
+                    }
+                    
+                    // Debug: log mapping info
+                    error_log("Mapping debug for $kode_produk: " . implode(" | ", $mappingDebug));
+
+                    // Update produk harga_modal with minimum from pricing
+                    if ($minHargaModal < $harga_jual) {
+                        $updateModalStmt = $conn->prepare("UPDATE produk SET harga_modal = ? WHERE id = ?");
+                        $updateModalStmt->bind_param("di", $minHargaModal, $newProdukId);
+                        $updateModalStmt->execute();
+                        $updateModalStmt->close();
+                    }
+
+                    $conn->commit();
+                    setAlert('success', "Produk '$kode_produk' berhasil ditambahkan dengan $insertedMapping mapping. Debug: " . implode(", ", $mappingDebug));
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    setAlert('error', 'Gagal menambahkan produk!');
+                }
             }
         }
     }
@@ -157,40 +253,91 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         header("Location: kelola_produk.php");
         exit;
     }
-    
+
     $produk_id = intval($_POST['produk_id'] ?? 0);
     $kode_produk = trim($_POST['kode_produk'] ?? '');
     $nama_produk = trim($_POST['nama_produk'] ?? '');
     $kategori_id = intval($_POST['kategori_id'] ?? 0);
     $provider = trim($_POST['provider'] ?? '');
-    $nominal = floatval($_POST['nominal'] ?? 0);
+    $source_aggregator = trim($_POST['source_aggregator'] ?? 'digiflazz');
+    $nominal_input = trim($_POST['nominal'] ?? '');
     $harga_jual = floatval($_POST['harga_jual'] ?? 0);
-    $harga_modal = floatval($_POST['harga_modal'] ?? 0);
     $status = $_POST['status'] ?? 'active';
-    
+    $mapping_count = intval($_POST['mapping_count'] ?? 0);
+
+    // Parse nominal: value + display string
+    $parsedNominal = parseNominalValue($nominal_input, $kategori_id);
+    $nominal_value = $parsedNominal['value'];
+    $nominal_display = $parsedNominal['display'];
+
     if ($produk_id == 0) {
         setAlert('error', 'Produk ID tidak valid!');
     } elseif (empty($kode_produk) || empty($nama_produk) || $kategori_id == 0) {
         setAlert('error', 'Kode, Nama, dan Kategori wajib diisi!');
-    } elseif ($nominal <= 0 || $harga_jual <= 0 || $harga_modal <= 0) {
-        setAlert('error', 'Nominal dan harga harus lebih dari 0!');
-    } elseif ($harga_jual < $harga_modal) {
-        setAlert('error', 'Harga jual harus lebih besar atau sama dengan harga modal!');
+    } elseif (empty($nominal_input)) {
+        setAlert('error', 'Nominal wajib diisi!');
+    } elseif ($harga_jual <= 0) {
+        setAlert('error', 'Harga jual harus lebih dari 0!');
     } else {
         // Cek apakah kode produk sudah digunakan oleh produk lain
         $checkStmt = $conn->prepare("SELECT id FROM produk WHERE kode_produk = ? AND id != ?");
         $checkStmt->bind_param("si", $kode_produk, $produk_id);
         $checkStmt->execute();
-        
+
         if ($checkStmt->get_result()->num_rows > 0) {
             setAlert('error', 'Kode produk sudah digunakan!');
         } else {
             // Update produk
-            $stmt = $conn->prepare("UPDATE produk SET kode_produk = ?, nama_produk = ?, kategori_id = ?, provider = ?, nominal = ?, harga_jual = ?, harga_modal = ?, status = ? WHERE id = ?");
-            $stmt->bind_param("ssisddssi", $kode_produk, $nama_produk, $kategori_id, $provider, $nominal, $harga_jual, $harga_modal, $status, $produk_id);
-            
+            $stmt = $conn->prepare("UPDATE produk SET kode_produk = ?, nama_produk = ?, kategori_id = ?, provider = ?, source_aggregator = ?, nominal = ?, nominal_display = ?, harga_jual = ?, status = ? WHERE id = ?");
+            $stmt->bind_param("ssisssdssi", $kode_produk, $nama_produk, $kategori_id, $provider, $source_aggregator, $nominal_value, $nominal_display, $harga_jual, $status, $produk_id);
+
             if ($stmt->execute()) {
-                setAlert('success', 'Produk berhasil diperbarui!');
+                $stmt->close();
+
+                $conn->begin_transaction();
+                try {
+                    // Delete existing mappings + re-insert
+                    $providerNorm = $provider;
+
+                    $delStmt = $conn->prepare("DELETE FROM product_pricing WHERE product_id = ?");
+                    $delStmt->bind_param("i", $produk_id);
+                    $delStmt->execute();
+                    $delStmt->close();
+
+                    $insertedMapping = 0;
+                    foreach ($_POST as $key => $val) {
+                        if (preg_match('/^mapping_aggregator_sku_(\d+)$/', $key, $m)) {
+                            $idx = $m[1];
+                            $aggSku = trim($_POST["mapping_aggregator_sku_$idx"] ?? '');
+                            $aggModal = floatval($_POST["mapping_harga_modal_$idx"] ?? 0);
+                            if (empty($aggSku) || $aggModal <= 0) continue;
+
+                            $aggName = trim($_POST["mapping_aggregator_$idx"] ?? '');
+                            $aggSeller = trim($_POST["mapping_seller_name_$idx"] ?? 'default');
+
+                            $stmt2 = $conn->prepare("
+                                INSERT INTO product_pricing (product_id, sku_code, provider, aggregator, aggregator_sku, seller_name, harga_modal, harga_jual, is_active)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ON DUPLICATE KEY UPDATE
+                                    aggregator_sku = VALUES(aggregator_sku),
+                                    harga_modal = VALUES(harga_modal),
+                                    harga_jual = VALUES(harga_jual),
+                                    is_active = VALUES(is_active)
+                            ");
+                            $isActive = 'yes';
+                            $stmt2->bind_param("isssssdds", $produk_id, $kode_produk, $providerNorm, $aggName, $aggSku, $aggSeller, $aggModal, $harga_jual, $isActive);
+                            $stmt2->execute();
+                            $stmt2->close();
+                            $insertedMapping++;
+                        }
+                    }
+
+                    $conn->commit();
+                    setAlert('success', "Produk berhasil diperbarui dengan $insertedMapping mapping.");
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    setAlert('error', 'Gagal memperbarui produk!');
+                }
             } else {
                 setAlert('error', 'Gagal memperbarui produk!');
             }
@@ -224,10 +371,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         if ($result['total'] > 0) {
             setAlert('error', 'Tidak dapat menghapus produk yang sudah ada transaksi!');
         } else {
+            // Ambil kode_produk dulu untuk hapus dari product_pricing
+            $stmtGet = $conn->prepare("SELECT kode_produk FROM produk WHERE id = ?");
+            $stmtGet->bind_param("i", $produk_id);
+            $stmtGet->execute();
+            $row = $stmtGet->get_result()->fetch_assoc();
+            $stmtGet->close();
+
+            $kodeProduk = $row['kode_produk'] ?? '';
+
+            // Delete dari product_pricing dulu
+            if ($kodeProduk) {
+                $stmtDel = $conn->prepare("DELETE FROM product_pricing WHERE sku_code = ?");
+                $stmtDel->bind_param("s", $kodeProduk);
+                $stmtDel->execute();
+                $stmtDel->close();
+            }
+
             // Delete produk
             $stmt = $conn->prepare("DELETE FROM produk WHERE id = ?");
             $stmt->bind_param("i", $produk_id);
-            
+
             if ($stmt->execute()) {
                 setAlert('success', 'Produk berhasil dihapus!');
             } else {
@@ -317,25 +481,40 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         }
         $getStmt->execute();
         $affectedProducts = $getStmt->get_result();
-        
+
         $updatedCount = 0;
-        
-        // Update each product
+
+        // Prepare statements once (reuse in loop)
+        $updateProdukStmt = $conn->prepare("UPDATE produk SET harga_jual = ?, harga_modal = ? WHERE id = ?");
+        $updatePricingStmt = $conn->prepare("UPDATE product_pricing SET harga_jual = ?, harga_modal = ? WHERE product_id = ?");
+
+        // Update each product + its pricing entries in a transaction
         while ($product = $affectedProducts->fetch_assoc()) {
             $new_harga_jual = $update_harga_jual ? calculateNewPrice($product['harga_jual'], $increase_type, $increase_value) : $product['harga_jual'];
             $new_harga_modal = $update_harga_modal ? calculateNewPrice($product['harga_modal'], $increase_type, $increase_value) : $product['harga_modal'];
-            
+
             // Ensure harga_jual >= harga_modal
             if ($new_harga_jual < $new_harga_modal) {
                 $new_harga_jual = $new_harga_modal;
             }
-            
-            $updateStmt = $conn->prepare("UPDATE produk SET harga_jual = ?, harga_modal = ? WHERE id = ?");
-            $updateStmt->bind_param("ddi", $new_harga_jual, $new_harga_modal, $product['id']);
-            if ($updateStmt->execute()) {
+
+            $conn->begin_transaction();
+            try {
+                $updateProdukStmt->bind_param("ddi", $new_harga_jual, $new_harga_modal, $product['id']);
+                $updateProdukStmt->execute();
+
+                // Also sync product_pricing so routing always gets correct price
+                $updatePricingStmt->bind_param("ddi", $new_harga_jual, $new_harga_modal, $product['id']);
+                $updatePricingStmt->execute();
+
+                $conn->commit();
                 $updatedCount++;
+            } catch (Exception $e) {
+                $conn->rollback();
             }
         }
+        $updateProdukStmt->close();
+        $updatePricingStmt->close();
         
         if ($updatedCount > 0) {
             setAlert('success', "Berhasil memperbarui {$updatedCount} produk!");
@@ -380,31 +559,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     
     // CSV dengan nama kategori (bukan ID)
     $kategori_map = [
-        'pulsa' => 1,
-        'kuota' => 2,
+        'pulsa'    => 1,
+        'kuota'    => 2,
         'internet' => 2,
-        'data' => 2,
-        'listrik' => 3,
-        'token' => 3,
-        'pln' => 3
+        'data'     => 2,
+        'listrik'  => 3,
+        'token'    => 3,
+        'pln'      => 3,
+        'transfer' => 4,
+        'game'     => 5,
     ];
-    
+
+    $kategori_nama_map = [
+        1 => 'Pulsa',
+        2 => 'Kuota',
+        3 => 'Token Listrik',
+        4 => 'Transfer Tunai',
+        5 => 'Game',
+    ];
+
     $row = 0;
     $inserted = 0;
     $updated = 0;
     $errors = [];
-    
+
     while (($data = fgetcsv($handle, 1000, ',')) !== false) {
         $row++;
-        
+
         // Skip header
         if ($row == 1) {
-            if (strtolower($data[0]) === 'kategori' || strtolower($data[0]) === 'kategori_id') continue;
+            if (strtolower($data[0] ?? '') === 'kategori' || strtolower($data[0] ?? '') === 'kategori_id') continue;
         }
-        
+
         // Skip empty rows
-        if (empty($data[0]) || empty($data[1])) continue;
-        
+        if (empty($data[0]) || empty($data[2])) continue;
+
         // Parse kategori - bisa ID (1/2/3) atau nama (pulsa/kuota/listrik)
         $kategori_input = strtolower(trim($data[0] ?? ''));
         if (is_numeric($kategori_input)) {
@@ -412,28 +601,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         } else {
             $kategori_id = $kategori_map[$kategori_input] ?? 0;
         }
-        
-        // Auto-generate kode jika kosong
-        $kode_produk = trim($data[1] ?? '');
-        if (empty($kode_produk)) {
-            $provider_code = strtoupper(substr(trim($data[3] ?? 'XXX'), 0, 3));
-            $kode_produk = $provider_code . '-' . strtoupper(uniqid());
-        }
-        
+        $kategori_nama = $kategori_nama_map[$kategori_id] ?? '';
+
         $nama_produk = trim($data[2] ?? '');
-        $provider = trim($data[3] ?? '');
-        $nominal = floatval($data[4] ?? 0);
-        $harga_jual = floatval($data[5] ?? 0);
+        $provider    = trim($data[3] ?? '');
+        $nominal_raw = trim($data[4] ?? '');
+        $harga_jual  = floatval($data[5] ?? 0);
         $harga_modal = floatval($data[6] ?? 0);
-        $status = strtolower(trim($data[7] ?? '')) ?: 'active';
-        
+        $status      = strtolower(trim($data[7] ?? '')) ?: 'active';
+
         // Validation
-        if ($kategori_id < 1 || $kategori_id > 3) {
-            $errors[] = "Baris {$row}: kategori tidak valid (pakai: pulsa/kuota/listrik atau 1/2/3)";
-            continue;
-        }
-        if (empty($kode_produk)) {
-            $errors[] = "Baris {$row}: kode_produk wajib diisi";
+        if ($kategori_id < 1 || $kategori_id > 5) {
+            $errors[] = "Baris {$row}: kategori tidak valid (pakai: pulsa/kuota/listrik/transfer/game atau 1-5)";
             continue;
         }
         if (empty($nama_produk)) {
@@ -447,24 +626,65 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         if (!in_array($status, ['active', 'inactive'])) {
             $status = 'active';
         }
-        
-        // Check if exists - Upsert
+
+        // Parse nominal input dengan category context
+        $parsedNominal = parseNominalValue($nominal_raw, $kategori_id);
+        $nominal_value = $parsedNominal['value'];
+        $nominal_display = $parsedNominal['display'];
+
+        // kode_produk dari CSV = aggregator_sku (manual, atau auto dari nama_produk)
+        $kode_produk = trim($data[1] ?? '');
+        if (empty($kode_produk)) {
+            // Auto-generate dari nama_produk (slug)
+            $kode_produk = preg_replace('/[^a-z0-9]/i', '_', strtoupper(substr($nama_produk, 0, 30)));
+            if (empty($kode_produk)) $kode_produk = 'PRODUK_' . $row;
+        }
+
+        // kode_produk di CSV untuk seed pricing (kosongkan = kode_produk produk)
+        $aggSku = trim($data[1] ?? '');
+        $sourceAgg = trim($data[8] ?? '') ?: 'digiflazz';
+
+        // Upsert ke tabel produk
         $checkStmt = $conn->prepare("SELECT id FROM produk WHERE kode_produk = ?");
         $checkStmt->bind_param("s", $kode_produk);
         $checkStmt->execute();
-        $exists = $checkStmt->get_result()->num_rows > 0;
-        
-        if ($exists) {
-            // Update
-            $stmt = $conn->prepare("UPDATE produk SET nama_produk = ?, kategori_id = ?, provider = ?, nominal = ?, harga_jual = ?, harga_modal = ?, status = ? WHERE kode_produk = ?");
-            $stmt->bind_param("sisdddss", $nama_produk, $kategori_id, $provider, $nominal, $harga_jual, $harga_modal, $status, $kode_produk);
+        $existingProd = $checkStmt->get_result()->fetch_assoc();
+        $checkStmt->close();
+
+        if ($existingProd) {
+            $productId = intval($existingProd['id']);
+            $stmt = $conn->prepare("UPDATE produk SET nama_produk = ?, kategori_id = ?, provider = ?, nominal = ?, nominal_display = ?, harga_jual = ?, harga_modal = ?, status = ? WHERE kode_produk = ?");
+            $stmt->bind_param("sisissdds", $nama_produk, $kategori_id, $provider, $nominal_value, $nominal_display, $harga_jual, $harga_modal, $kode_produk, $status);
             if ($stmt->execute()) $updated++;
         } else {
-            // Insert
-            $stmt = $conn->prepare("INSERT INTO produk (kategori_id, kode_produk, nama_produk, provider, nominal, harga_jual, harga_modal, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("isssddds", $kategori_id, $kode_produk, $nama_produk, $provider, $nominal, $harga_jual, $harga_modal, $status);
-            if ($stmt->execute()) $inserted++;
+            $stmt = $conn->prepare("INSERT INTO produk (kategori_id, kode_produk, nama_produk, provider, source_aggregator, nominal, nominal_display, harga_jual, harga_modal, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("isssssddss", $kategori_id, $kode_produk, $nama_produk, $provider, $sourceAgg, $nominal_value, $nominal_display, $harga_jual, $harga_modal, $status);
+            if ($stmt->execute()) {
+                $inserted++;
+                $productId = $conn->insert_id;
+            } else {
+                $productId = null;
+            }
         }
+        $stmt->close();
+
+        // Auto-seed ke product_pricing (Fix 5: include product_id)
+        $pricingAggSku = !empty($aggSku) ? $aggSku : $kode_produk;
+        $pricingProvider = $provider ?: 'OTHER';
+        $pricingSeller = 'default';
+
+        $pricingStmt = $conn->prepare("
+            INSERT INTO product_pricing (product_id, sku_code, provider, aggregator, aggregator_sku, seller_name, harga_modal, harga_jual)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                provider = VALUES(provider),
+                aggregator_sku = VALUES(aggregator_sku),
+                harga_modal = VALUES(harga_modal),
+                harga_jual = VALUES(harga_jual)
+        ");
+        $pricingStmt->bind_param("isssssdd", $productId, $kode_produk, $pricingProvider, $sourceAgg, $pricingAggSku, $pricingSeller, $harga_modal, $harga_jual);
+        $pricingStmt->execute();
+        $pricingStmt->close();
     }
     
     fclose($handle);
@@ -509,30 +729,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     
     $whereClause = count($where) > 0 ? "WHERE " . implode(" AND ", $where) : "";
     
-    $sql = "SELECT kategori_id, kode_produk, nama_produk, provider, nominal, harga_jual, harga_modal, status FROM produk $whereClause ORDER BY kategori_id, provider, nominal";
+    $sql = "SELECT kategori_id, kode_produk, nama_produk, provider, nominal, nominal_display, harga_jual, harga_modal, status FROM produk $whereClause ORDER BY kategori_id, provider, nominal";
     $stmt = $conn->prepare($sql);
     if (!empty($params)) {
         $stmt->bind_param($types, ...$params);
     }
     $stmt->execute();
     $result = $stmt->get_result();
-    
+
     // Kategori map for export
-    $kategori_names = [1 => 'pulsa', 2 => 'kuota', 3 => 'listrik'];
-    
+    $kategori_names = [1 => 'pulsa', 2 => 'kuota', 3 => 'listrik', 4 => 'transfer', 5 => 'game'];
+
     header('Content-Type: text/csv');
     header('Content-Disposition: attachment; filename="produk_export_' . date('Ymd_His') . '.csv"');
-    
+
     $output = fopen('php://output', 'w');
     fputcsv($output, ['kategori', 'kode_produk', 'nama_produk', 'provider', 'nominal', 'harga_jual', 'harga_modal', 'status']);
-    
+
     while ($row = $result->fetch_assoc()) {
+        // Use nominal_display if available, otherwise format from nominal_value
+        $nominalExport = $row['nominal_display'] ?? formatBytesForDisplay(intval($row['nominal']));
         fputcsv($output, [
             $kategori_names[$row['kategori_id']] ?? 'unknown',
             $row['kode_produk'],
             $row['nama_produk'],
             $row['provider'],
-            $row['nominal'],
+            $nominalExport,
             $row['harga_jual'],
             $row['harga_modal'],
             $row['status']
@@ -842,6 +1064,102 @@ include 'layout.php';
     color: var(--primary-blue);
     border-bottom-color: #cbd5e1;
 }
+
+/* ── Pagination ── */
+.pagination-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 1rem 0;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 0.5rem;
+}
+.pagination-info {
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+.pagination {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+.page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #374151;
+    background: white;
+    border: 1px solid #d1d5db;
+    text-decoration: none;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+.page-btn:hover {
+    background: #eff6ff;
+    border-color: #2563eb;
+    color: #2563eb;
+}
+.page-btn.active {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: white;
+    font-weight: 600;
+}
+.pagination-per-page {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+.pagination-per-page select {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.25rem;
+    font-size: 0.8rem;
+}
+
+/* ── Action Buttons in Table ── */
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.375rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: 0.85rem;
+}
+.action-btn-edit {
+    color: #2563eb;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+.action-btn-edit:hover {
+    background: #2563eb;
+    color: white;
+    border-color: #2563eb;
+}
+.action-btn-delete {
+    color: #dc2626;
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+.action-btn-delete:hover {
+    background: #dc2626;
+    color: white;
+    border-color: #dc2626;
+}
 </style>
 
 <!-- ═══════════════════════════════════════════
@@ -1090,7 +1408,7 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
                             <div class="ml-4">
                                 <div class="text-sm font-medium text-gray-900"><?= htmlspecialchars($p['nama_produk']) ?></div>
                                 <div class="text-sm text-gray-500">Kode: <?= htmlspecialchars($p['kode_produk']) ?></div>
-                                <div class="text-sm text-gray-500">Nominal: <?= rupiah($p['nominal']) ?></div>
+                                <div class="text-sm text-gray-500">Nominal: <?= htmlspecialchars(formatNominalDisplay($p)) ?></div>
                             </div>
                         </div>
                     </td>
@@ -1102,21 +1420,45 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <div class="space-y-1">
-                            <div class="flex justify-between items-center">
-                                <span class="text-xs text-gray-500">Modal:</span>
-                                <span class="text-sm font-medium"><?= rupiah($p['harga_modal']) ?></span>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-xs text-gray-500">Jual:</span>
-                                <span class="text-sm font-semibold text-blue-600"><?= rupiah($p['harga_jual']) ?></span>
-                            </div>
-                            <div class="flex justify-between items-center pt-1 border-t border-gray-100">
-                                <span class="text-xs text-gray-500">Profit:</span>
-                                <span class="profit-badge <?= $profit >= 0 ? 'profit-positive' : 'profit-negative' ?>">
-                                    <?= $profit >= 0 ? '+' : '' ?><?= rupiah($profit) ?>
-                                    <span class="text-xs">(<?= number_format($profit_margin, 1) ?>%)</span>
+                            <?php
+                            $mappings = [];
+                            if (!empty($p['pricing_mappings'])) {
+                                foreach (explode(';;', $p['pricing_mappings']) as $mp) {
+                                    $parts = explode('|', $mp);
+                                    if (count($parts) >= 4) {
+                                        $mappings[] = [
+                                            'aggregator' => $parts[0],
+                                            'harga_modal' => floatval($parts[1]),
+                                            'harga_jual' => floatval($parts[2]),
+                                            'is_active' => $parts[3],
+                                        ];
+                                    }
+                                }
+                            }
+                            // If no mappings, fall back to produk table
+                            if (empty($mappings)) {
+                                $mappings[] = [
+                                    'aggregator' => 'default',
+                                    'harga_modal' => floatval($p['harga_modal'] ?? 0),
+                                    'harga_jual' => floatval($p['harga_jual'] ?? 0),
+                                    'is_active' => $p['status'] ?? 'active',
+                                ];
+                            }
+                            foreach ($mappings as $mp):
+                                $mpProfit = $mp['harga_jual'] - $mp['harga_modal'];
+                                $mpMargin = $mp['harga_modal'] > 0 ? ($mpProfit / $mp['harga_modal']) * 100 : 0;
+                                $aggLabel = strtoupper($mp['aggregator']);
+                                $dotColor = $mp['is_active'] === 'yes' ? 'bg-green-500' : 'bg-gray-400';
+                            ?>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full <?= $dotColor ?> flex-shrink-0" title="<?= $mp['is_active'] === 'yes' ? 'Active' : 'Inactive' ?>"></span>
+                                <span class="text-xs text-gray-500 truncate max-w-[50px]" title="<?= htmlspecialchars($aggLabel) ?>"><?= htmlspecialchars($aggLabel) ?></span>
+                                <span class="text-xs text-gray-400">·</span>
+                                <span class="text-xs font-medium <?= $mpProfit >= 0 ? 'text-green-600' : 'text-red-600' ?>">
+                                    <?= $mpProfit >= 0 ? '+' : '' ?><?= rupiah($mpProfit) ?>
                                 </span>
                             </div>
+                            <?php endforeach; ?>
                         </div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
@@ -1133,22 +1475,22 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div class="flex gap-2">
-                            <button onclick="openEditModal(
-                                <?= $p['id'] ?>, 
-                                '<?= htmlspecialchars($p['kode_produk']) ?>', 
-                                '<?= htmlspecialchars($p['nama_produk']) ?>', 
-                                <?= $p['kategori_id'] ?>, 
-                                '<?= htmlspecialchars($p['provider']) ?>', 
-                                <?= $p['nominal'] ?>, 
-                                <?= $p['harga_jual'] ?>, 
-                                <?= $p['harga_modal'] ?>, 
-                                '<?= $p['status'] ?>'
-                            )" 
-                                    class="text-blue-600 hover:text-blue-900" title="Edit">
+                            <button data-action="edit"
+                                    data-id="<?= $p['id'] ?>"
+                                    data-kode="<?= htmlspecialchars($p['kode_produk']) ?>"
+                                    data-nama="<?= htmlspecialchars($p['nama_produk']) ?>"
+                                    data-kategori="<?= $p['kategori_id'] ?>"
+                                    data-provider="<?= htmlspecialchars($p['provider'] ?? '') ?>"
+                                    data-nominal="<?= htmlspecialchars($p['nominal_display'] ?? '') ?>"
+                                    data-harga="<?= $p['harga_jual'] ?>"
+                                    data-status="<?= htmlspecialchars($p['status']) ?>"
+                                    class="action-btn action-btn-edit" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="openDeleteModal(<?= $p['id'] ?>, '<?= htmlspecialchars($p['nama_produk']) ?>')" 
-                                    class="text-red-600 hover:text-red-900" title="Hapus">
+                            <button data-action="delete"
+                                    data-id="<?= $p['id'] ?>"
+                                    data-nama="<?= htmlspecialchars($p['nama_produk']) ?>"
+                                    class="action-btn action-btn-delete" title="Hapus">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -1255,8 +1597,9 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
                         </button>
                     </div>
                     <p class="text-sm text-blue-700">Kolom: <code>kategori,kode_produk,nama_produk,provider,nominal,harga_jual,harga_modal,status</code></p>
-                    <p class="text-sm text-blue-700 mt-1"><b>Kategori:</b> pulsa/kuota/listrik (atau 1/2/3)</p>
-                    <p class="text-sm text-blue-700"><b>Kode produk:</b> opsional, kalau kosong auto-generate</p>
+                    <p class="text-sm text-blue-700 mt-1"><b>Kategori:</b> pulsa/kuota/listrik/transfer/game (atau 1-5)</p>
+                    <p class="text-sm text-blue-700"><b>Nominal:</b> natural language — contoh: <b>5000</b> (pulsa), <b>10 GB</b> (kuota), <b>Unlimited</b> (kuota tanpa batas), <b>86</b> (game diamond)</p>
+                    <p class="text-sm text-blue-700"><b>Kode produk:</b> Kode di aggregator (misal TSEL5). Kosongkan = auto-generate dari nama_produk.</p>
                     <p class="text-sm text-blue-700"><b>Status:</b> active / inactive</p>
                 </div>
                 
@@ -1287,71 +1630,103 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
 
 <!-- Modal Tambah Produk -->
 <div id="addProductModal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width:700px;">
         <div class="px-6 py-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold text-gray-900">Tambah Produk Baru</h3>
         </div>
-        <form method="POST" action="" class="p-6">
+        <form method="POST" action="" class="p-6" id="addProductForm">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
             <input type="hidden" name="action" value="add">
-            <div class="space-y-4">
+            <input type="hidden" name="source_aggregator" id="add_source_aggregator" value="digiflazz">
+            <input type="hidden" name="mapping_count" id="add_mapping_count" value="0">
+
+            <!-- ── SECTION 1: Info Produk ─────────────────────────────── -->
+            <div class="mb-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded">1</span>
+                    <span class="font-semibold text-gray-700 text-sm">Informasi Produk</span>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Kode Produk *</label>
-                        <input type="text" name="kode_produk" required
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                               placeholder="TSEL5">
-                        <p class="text-xs text-gray-500 mt-1">Kode unik untuk produk</p>
-                    </div>
-                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Nama Produk *</label>
-                        <input type="text" name="nama_produk" required
+                        <input type="text" name="nama_produk" required id="add_nama_produk"
                                class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
                                placeholder="Pulsa Telkomsel 5K">
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Kode Produk *</label>
+                        <input type="text" name="kode_produk" required id="add_kode_produk"
+                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                               placeholder="auto atau manual">
+                    </div>
                 </div>
-                
-                <div class="grid grid-cols-2 gap-4">
+
+                <div class="grid grid-cols-2 gap-4 mt-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Kategori *</label>
-                        <select name="kategori_id" required class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
+                        <select name="kategori_id" required id="add_kategori_id"
+                                class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
                             <option value="">Pilih Kategori</option>
-                            <?php while ($kat = $kategori->fetch_assoc()): ?>
-                            <option value="<?= $kat['id'] ?>"><?= htmlspecialchars($kat['nama_kategori']) ?></option>
-                            <?php endwhile; ?>
-                            <?php $kategori->data_seek(0); ?>
+                            <?php
+                            $kategori_opts = '';
+                            while ($kat = $kategori->fetch_assoc()):
+                                $kategori_opts .= '<option value="'.$kat['id'].'">'.htmlspecialchars($kat['nama_kategori']).'</option>';
+                            endwhile;
+                            echo $kategori_opts;
+                            $kategori->data_seek(0);
+                            ?>
                         </select>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
-                        <input type="text" name="provider"
+                        <input type="text" name="provider" id="add_provider"
+                               list="providerList"
                                class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                               placeholder="Telkomsel, XL, PLN, dll">
+                               placeholder="Telkomsel">
+                        <datalist id="providerList">
+                            <option value="Telkomsel">
+                            <option value="XL">
+                            <option value="Axis">
+                            <option value="Indosat">
+                            <option value="Three">
+                            <option value="Smartfren">
+                            <option value="PLN">
+                            <option value="BCA">
+                            <option value="Mandiri">
+                            <option value="BNI">
+                            <option value="BRI">
+                            <option value="OVO">
+                            <option value="GoPay">
+                            <option value="Dana">
+                        </datalist>
                     </div>
                 </div>
-                
-                <div class="grid grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nominal *</label>
-                        <input type="number" name="nominal" required min="1" step="1"
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                               placeholder="5000">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Harga Modal *</label>
-                        <input type="number" name="harga_modal" required min="1" step="1"
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                               placeholder="5500">
-                    </div>
+
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nominal *</label>
+                    <input type="text" name="nominal" required id="add_nominal"
+                           class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                           placeholder="5000">
+                    <p class="text-xs text-gray-400 mt-1" id="add_nominal_hint"></p>
+                </div>
+            </div>
+
+            <!-- ── SECTION 2: Harga Jual ───────────────────────────── -->
+            <div class="mb-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded">2</span>
+                    <span class="font-semibold text-gray-700 text-sm">Harga ke Customer</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Harga Jual *</label>
                         <input type="number" name="harga_jual" required min="1" step="1"
+                               id="add_harga_jual"
                                class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
                                placeholder="6500">
                     </div>
-                </div>
-                
-                <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
                         <select name="status" class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
@@ -1359,22 +1734,51 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
                             <option value="inactive">Inactive</option>
                         </select>
                     </div>
-                    <div class="pt-6">
-                        <div id="profitPreview" class="text-sm p-2 bg-gray-50 rounded">
-                            <p>Profit: <span id="profitValue" class="font-semibold">Rp 0</span></p>
-                            <p>Margin: <span id="marginValue" class="font-semibold">0%</span></p>
-                        </div>
-                    </div>
                 </div>
             </div>
-            <div class="flex gap-3 pt-6">
-                <button type="button" onclick="closeModal('addProductModal')" 
+
+            <!-- ── SECTION 3: Mapping Aggregator ─────────────────── -->
+            <div class="mb-5">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded">3</span>
+                        <span class="font-semibold text-gray-700 text-sm">Mapping Aggregator</span>
+                    </div>
+                    <button type="button" onclick="addMappingRow('addMappingBody', 'add_harga_jual')"
+                            class="text-xs px-3 py-1 bg-green-50 border border-green-200 text-green-700 rounded hover:bg-green-100 font-medium">
+                        <i class="fas fa-plus mr-1"></i> Tambah Mapping
+                    </button>
+                </div>
+
+                <div class="text-xs text-gray-500 mb-2">
+                    Minimal 1 mapping wajib diisi. Profit = Harga Jual - Harga Modal per mapping.
+                </div>
+
+                <!-- Header row -->
+                <div class="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 px-1 mb-1">
+                    <div class="col-span-3">Aggregator</div>
+                    <div class="col-span-2">Seller</div>
+                    <div class="col-span-3">Kode di Aggregator *</div>
+                    <div class="col-span-2">Harga Modal *</div>
+                    <div class="col-span-2">Preview Profit</div>
+                    <div class="col-span-1"></div>
+                </div>
+
+                <div id="addMappingBody" class="space-y-2">
+                    <!-- Dynamic rows added by JS -->
+                </div>
+
+                <div id="addMappingError" class="text-xs text-red-600 mt-2 hidden"></div>
+            </div>
+
+            <div class="flex gap-3 pt-4 border-t border-gray-200">
+                <button type="button" onclick="closeModal('addProductModal')"
                         class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition">
                     Batal
                 </button>
-                <button type="submit" 
+                <button type="submit" id="addSubmitBtn"
                         class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold">
-                    <i class="fas fa-save mr-2"></i> Simpan
+                    <i class="fas fa-save mr-2"></i> Simpan Produk
                 </button>
             </div>
         </form>
@@ -1383,32 +1787,42 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
 
 <!-- Modal Edit Produk -->
 <div id="editProductModal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width:700px;">
         <div class="px-6 py-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold text-gray-900">Edit Produk</h3>
         </div>
-        <form method="POST" action="" class="p-6">
+        <form method="POST" action="" class="p-6" id="editProductForm">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="produk_id" id="edit_produk_id">
-            <div class="space-y-4">
+            <input type="hidden" name="source_aggregator" id="edit_source_aggregator" value="digiflazz">
+            <input type="hidden" name="mapping_count" id="edit_mapping_count" value="0">
+
+            <!-- ── SECTION 1: Info Produk ─────────────────────────────── -->
+            <div class="mb-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded">1</span>
+                    <span class="font-semibold text-gray-700 text-sm">Informasi Produk</span>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Kode Produk *</label>
-                        <input type="text" name="kode_produk" id="edit_kode_produk" required
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Produk *</label>
+                        <input type="text" name="nama_produk" required id="edit_nama_produk"
                                class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Produk *</label>
-                        <input type="text" name="nama_produk" id="edit_nama_produk" required
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Kode Produk *</label>
+                        <input type="text" name="kode_produk" required id="edit_kode_produk"
                                class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
                     </div>
                 </div>
-                
-                <div class="grid grid-cols-2 gap-4">
+
+                <div class="grid grid-cols-2 gap-4 mt-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Kategori *</label>
-                        <select name="kategori_id" id="edit_kategori_id" required class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
+                        <select name="kategori_id" required id="edit_kategori_id"
+                                class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
                             <?php while ($kat = $kategori->fetch_assoc()): ?>
                             <option value="<?= $kat['id'] ?>"><?= htmlspecialchars($kat['nama_kategori']) ?></option>
                             <?php endwhile; ?>
@@ -1421,49 +1835,83 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
                                class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
                     </div>
                 </div>
-                
-                <div class="grid grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nominal *</label>
-                        <input type="number" name="nominal" id="edit_nominal" required min="1" step="1"
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Harga Modal *</label>
-                        <input type="number" name="harga_modal" id="edit_harga_modal" required min="1" step="1"
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Harga Jual *</label>
-                        <input type="number" name="harga_jual" id="edit_harga_jual" required min="1" step="1"
-                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
-                    </div>
+
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nominal *</label>
+                    <input type="text" name="nominal" required id="edit_nominal"
+                           class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
+                    <p class="text-xs text-gray-400 mt-1" id="edit_nominal_hint"></p>
                 </div>
-                
+            </div>
+
+            <!-- ── SECTION 2: Harga Jual ───────────────────────────── -->
+            <div class="mb-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded">2</span>
+                    <span class="font-semibold text-gray-700 text-sm">Harga ke Customer</span>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Harga Jual *</label>
+                        <input type="number" name="harga_jual" required min="1" step="1"
+                               id="edit_harga_jual"
+                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                               placeholder="6500">
+                    </div>
+                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                        <select name="status" id="edit_status" class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
+                        <select name="status" id="edit_status"
+                                class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none">
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                         </select>
                     </div>
-                    <div class="pt-6">
-                        <div id="editProfitPreview" class="text-sm p-2 bg-gray-50 rounded">
-                            <p>Profit: <span id="editProfitValue" class="font-semibold">Rp 0</span></p>
-                            <p>Margin: <span id="editMarginValue" class="font-semibold">0%</span></p>
-                        </div>
-                    </div>
                 </div>
             </div>
-            <div class="flex gap-3 pt-6">
-                <button type="button" onclick="closeModal('editProductModal')" 
+
+            <!-- ── SECTION 3: Mapping Aggregator ─────────────────── -->
+            <div class="mb-5">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded">3</span>
+                        <span class="font-semibold text-gray-700 text-sm">Mapping Aggregator</span>
+                    </div>
+                    <button type="button" onclick="addMappingRow('editMappingBody', 'edit_harga_jual')"
+                            class="text-xs px-3 py-1 bg-green-50 border border-green-200 text-green-700 rounded hover:bg-green-100 font-medium">
+                        <i class="fas fa-plus mr-1"></i> Tambah Mapping
+                    </button>
+                </div>
+
+                <div class="text-xs text-gray-500 mb-2">
+                    Minimal 1 mapping wajib diisi. Profit = Harga Jual - Harga Modal per mapping.
+                </div>
+
+                <!-- Header row -->
+                <div class="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 px-1 mb-1">
+                    <div class="col-span-3">Aggregator</div>
+                    <div class="col-span-2">Seller</div>
+                    <div class="col-span-3">Kode di Aggregator *</div>
+                    <div class="col-span-2">Harga Modal *</div>
+                    <div class="col-span-2">Preview Profit</div>
+                    <div class="col-span-1"></div>
+                </div>
+
+                <div id="editMappingBody" class="space-y-2">
+                    <!-- Dynamic rows added by JS -->
+                </div>
+
+                <div id="editMappingError" class="text-xs text-red-600 mt-2 hidden"></div>
+            </div>
+
+            <div class="flex gap-3 pt-4 border-t border-gray-200">
+                <button type="button" onclick="closeModal('editProductModal')"
                         class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition">
                     Batal
                 </button>
-                <button type="submit" 
+                <button type="submit" id="editSubmitBtn"
                         class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold">
-                    <i class="fas fa-save mr-2"></i> Update
+                    <i class="fas fa-save mr-2"></i> Update Produk
                 </button>
             </div>
         </form>
@@ -1622,12 +2070,17 @@ window.onclick = function(event) {
 
 // Download CSV Template
 function downloadTemplate() {
+    // kategori, kode_produk, nama_produk, provider, nominal, harga_jual, harga_modal, status
+    // Nominal: natural language sesuai kategori
     const template = 'kategori,kode_produk,nama_produk,provider,nominal,harga_jual,harga_modal,status\n' +
-        'pulsa,TSEL-5RB,Pulsa Telkomsel 5rb,Telkomsel,5000000,6000,5500,active\n' +
-        'kuota,TLK-5GB,Internet 5GB 30hr,Telkomsel,5368709120,55000,52000,active\n' +
-        'listrik,TOKEN-20RB,Token Listrik 20rb,PLN,20000000,22500,20000,active\n' +
-        'kuota,,Internet Indosat 10GB,Indosat,10737418240,95000,90000,inactive';
-    
+        'pulsa,TSEL5,Pulsa Telkomsel 5rb,Telkomsel,5000,6000,5500,active\n' +
+        'pulsa,XL10,Pulsa XL 10rb,XL,10000,11500,11000,active\n' +
+        'kuota,AXIS10GB,Internet Axis 10GB 30hr,Axis,10 GB,25000,23000,active\n' +
+        'kuota,,Internet Axis Unlimited,Axis,Unlimited,35000,33000,active\n' +
+        'listrik,PLN20,Token PLN 20rb,PLN,20000,22500,20000,active\n' +
+        'transfer,BBCA100K,Transfer BCA 100rb,BCA,100000,100500,100000,active\n' +
+        'game,ML86,Diamond ML 86,MOBILELEGEND,86,15000,14000,active';
+
     const blob = new Blob([template], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1638,20 +2091,22 @@ function downloadTemplate() {
 }
 
 // Edit Produk Modal
-function openEditModal(id, kode, nama, kategoriId, provider, nominal, hargaJual, hargaModal, status) {
+function openEditModal(id, kode, nama, kategoriId, provider, nominalDisplay, hargaJual, status) {
     document.getElementById('edit_produk_id').value = id;
     document.getElementById('edit_kode_produk').value = kode;
     document.getElementById('edit_nama_produk').value = nama;
     document.getElementById('edit_kategori_id').value = kategoriId;
     document.getElementById('edit_provider').value = provider;
-    document.getElementById('edit_nominal').value = nominal;
+    document.getElementById('edit_nominal').value = nominalDisplay;
     document.getElementById('edit_harga_jual').value = hargaJual;
-    document.getElementById('edit_harga_modal').value = hargaModal;
     document.getElementById('edit_status').value = status;
-    
-    // Update profit preview
-    updateEditProfitPreview();
-    
+
+    // Update hint text
+    updateNominalHint('edit', kategoriId);
+
+    // Load existing mapping rows for this product
+    loadEditMappings(id);
+
     openModal('editProductModal');
 }
 
@@ -1693,110 +2148,46 @@ function showToast(message, type = 'info') {
     setTimeout(() => toast.remove(), 4000);
 }
 
-// Calculate profit and update preview
-function updateProfitPreview() {
-    const hargaModal = parseFloat(document.querySelector('input[name="harga_modal"]').value) || 0;
-    const hargaJual = parseFloat(document.querySelector('input[name="harga_jual"]').value) || 0;
-    const profit = hargaJual - hargaModal;
-    const margin = hargaModal > 0 ? (profit / hargaModal) * 100 : 0;
-    
-    document.getElementById('profitValue').textContent = formatRupiah(profit);
-    document.getElementById('marginValue').textContent = margin.toFixed(1) + '%';
-    
-    // Color code
-    const profitPreview = document.getElementById('profitPreview');
-    const profitValue = document.getElementById('profitValue');
-    const marginValue = document.getElementById('marginValue');
-    
-    if (profit >= 0) {
-        profitPreview.classList.remove('bg-red-50', 'text-red-800');
-        profitPreview.classList.add('bg-green-50', 'text-green-800');
-        profitValue.classList.remove('text-red-600');
-        profitValue.classList.add('text-green-600');
-        marginValue.classList.remove('text-red-600');
-        marginValue.classList.add('text-green-600');
-    } else {
-        profitPreview.classList.remove('bg-green-50', 'text-green-800');
-        profitPreview.classList.add('bg-red-50', 'text-red-800');
-        profitValue.classList.remove('text-green-600');
-        profitValue.classList.add('text-red-600');
-        marginValue.classList.remove('text-green-600');
-        marginValue.classList.add('text-red-600');
-    }
+// Update nominal hint text based on selected category
+// kategori_id mapping: 1=Pulsa, 2=Kuota, 3=Token Listrik, 4=Transfer Tunai, 5=Game
+function updateNominalHint(modal, kategoriId) {
+    const hintId = modal === 'add' ? 'add_nominal_hint' : 'edit_nominal_hint';
+    const hintEl = document.getElementById(hintId);
+    const placeholderId = modal === 'add' ? 'add_nominal' : 'edit_nominal';
+    const inputEl = document.getElementById(placeholderId);
+    if (!hintEl) return;
+
+    const hints = {
+        1: { hint: 'Pulsa: ketik jumlah (contoh: 5000)', placeholder: '5000' },
+        2: { hint: 'Kuota: ketik kapasitas (contoh: 10 GB, 5 MB, Unlimited)', placeholder: '10 GB' },
+        3: { hint: 'Token Listrik: ketik nominal token (contoh: 20000)', placeholder: '20000' },
+        4: { hint: 'Transfer Tunai: ketik jumlah transfer (contoh: 100000)', placeholder: '100000' },
+        5: { hint: 'Game: ketik jumlah/item (contoh: 86)', placeholder: '86' },
+    };
+
+    const info = hints[parseInt(kategoriId)] || hints[1];
+    hintEl.textContent = info.hint;
+    if (inputEl) inputEl.placeholder = info.placeholder;
 }
 
-function updateEditProfitPreview() {
-    const hargaModal = parseFloat(document.getElementById('edit_harga_modal').value) || 0;
-    const hargaJual = parseFloat(document.getElementById('edit_harga_jual').value) || 0;
-    const profit = hargaJual - hargaModal;
-    const margin = hargaModal > 0 ? (profit / hargaModal) * 100 : 0;
-    
-    document.getElementById('editProfitValue').textContent = formatRupiah(profit);
-    document.getElementById('editMarginValue').textContent = margin.toFixed(1) + '%';
-    
-    // Color code
-    const profitPreview = document.getElementById('editProfitPreview');
-    const profitValue = document.getElementById('editProfitValue');
-    const marginValue = document.getElementById('editMarginValue');
-    
-    if (profit >= 0) {
-        profitPreview.classList.remove('bg-red-50', 'text-red-800');
-        profitPreview.classList.add('bg-green-50', 'text-green-800');
-        profitValue.classList.remove('text-red-600');
-        profitValue.classList.add('text-green-600');
-        marginValue.classList.remove('text-red-600');
-        marginValue.classList.add('text-green-600');
-    } else {
-        profitPreview.classList.remove('bg-green-50', 'text-green-800');
-        profitPreview.classList.add('bg-red-50', 'text-red-800');
-        profitValue.classList.remove('text-green-600');
-        profitValue.classList.add('text-red-600');
-        marginValue.classList.remove('text-green-600');
-        marginValue.classList.add('text-red-600');
-    }
-}
-
-// Add event listeners for profit preview
+// Initialize hints on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Add product modal
-    const hargaModalInput = document.querySelector('input[name="harga_modal"]');
-    const hargaJualInput = document.querySelector('input[name="harga_jual"]');
-    
-    if (hargaModalInput && hargaJualInput) {
-        hargaModalInput.addEventListener('input', updateProfitPreview);
-        hargaJualInput.addEventListener('input', updateProfitPreview);
-        updateProfitPreview(); // Initial calculation
+    // Add modal category change
+    const addKatSelect = document.querySelector('#addProductModal select[name="kategori_id"]');
+    if (addKatSelect) {
+        addKatSelect.addEventListener('change', function() {
+            updateNominalHint('add', this.value);
+        });
+        // Set initial hint
+        updateNominalHint('add', addKatSelect.value);
     }
-    
-    // Edit product modal (will be added when modal opens)
-    const editHargaModalInput = document.getElementById('edit_harga_modal');
-    const editHargaJualInput = document.getElementById('edit_harga_jual');
-    
-    if (editHargaModalInput && editHargaJualInput) {
-        editHargaModalInput.addEventListener('input', updateEditProfitPreview);
-        editHargaJualInput.addEventListener('input', updateEditProfitPreview);
-    }
-});
 
-// Form validation for add/edit
-const forms = document.querySelectorAll('form[action*="kelola_produk"]');
-forms.forEach(form => {
-    form.addEventListener('submit', function(e) {
-        const hargaModal = parseFloat(this.querySelector('input[name="harga_modal"]')?.value) || 0;
-        const hargaJual = parseFloat(this.querySelector('input[name="harga_jual"]')?.value) || 0;
-        
-        if (hargaJual < hargaModal) {
-            e.preventDefault();
-            showToast('Harga jual harus lebih besar atau sama dengan harga modal!', 'error');
-        }
-    });
-});
-
-// Auto-format number inputs
-document.addEventListener('input', function(e) {
-    if (e.target.name === 'nominal' || e.target.name === 'harga_modal' || e.target.name === 'harga_jual') {
-        const value = e.target.value.replace(/[^0-9]/g, '');
-        e.target.value = value;
+    // Edit modal category change
+    const editKatSelect = document.getElementById('edit_kategori_id');
+    if (editKatSelect) {
+        editKatSelect.addEventListener('change', function() {
+            updateNominalHint('edit', this.value);
+        });
     }
 });
 
@@ -1950,8 +2341,31 @@ async function submitBulkPrice() {
         console.error(err);
     }
 }
+
+// ─── Event delegation for table action buttons ───
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    var action = btn.dataset.action;
+    if (action === 'edit') {
+        openEditModal(
+            parseInt(btn.dataset.id),
+            btn.dataset.kode,
+            btn.dataset.nama,
+            parseInt(btn.dataset.kategori),
+            btn.dataset.provider,
+            btn.dataset.nominal,
+            parseFloat(btn.dataset.harga),
+            btn.dataset.status
+        );
+    } else if (action === 'delete') {
+        openDeleteModal(parseInt(btn.dataset.id), btn.dataset.nama);
+    }
+});
 </script>
 
+<script>window.AGGREGATOR_OPTIONS = <?= $aggOptionsJson ?>;</script>
+<script src="assets/js/kelola_produk.js"></script>
 <?php
 include 'layout_footer.php';
 $conn->close();
