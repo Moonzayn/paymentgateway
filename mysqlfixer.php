@@ -17,16 +17,23 @@ $config = [
 ];
 
 // ─── Helper ─────────────────────────────────────────────────────────────────
-function esc($conn, $v) { return "'" . $conn->real_escape_string($v) . "'"; }
+function esc($conn, $v) { 
+    if ($v === null) return 'NULL';
+    return "'" . $conn->real_escape_string($v) . "'"; 
+}
+
 function escVals($conn, $arr) {
     $out = [];
-    foreach ($arr as $v) { $out[] = esc($conn, $v); }
+    foreach ($arr as $v) { 
+        $out[] = esc($conn, $v); 
+    }
     return $out;
 }
 
 function msg($type, $text) {
     $icons = ['ok' => '✅', 'warn' => '⚠️', 'err' => '❌', 'info' => 'ℹ️', 'skip' => '➡️'];
-    echo $icons[$type] . " $text\n";
+    $icon = isset($icons[$type]) ? $icons[$type] : 'ℹ️';
+    echo $icon . " $text\n";
 }
 
 function query($conn, $sql, $silent = false) {
@@ -40,16 +47,16 @@ function query($conn, $sql, $silent = false) {
 function colExists($conn, $table, $column) {
     $r = $conn->query("SELECT 1 FROM information_schema.COLUMNS
                         WHERE TABLE_SCHEMA = DATABASE()
-                          AND TABLE_NAME = '$table'
-                          AND COLUMN_NAME = '$column'");
+                          AND TABLE_NAME = '" . $conn->real_escape_string($table) . "'
+                          AND COLUMN_NAME = '" . $conn->real_escape_string($column) . "'");
     return $r && $r->num_rows > 0;
 }
 
 function colIsAutoIncrement($conn, $table, $column) {
     $r = $conn->query("SELECT EXTRA FROM information_schema.COLUMNS
                         WHERE TABLE_SCHEMA = DATABASE()
-                          AND TABLE_NAME = '$table'
-                          AND COLUMN_NAME = '$column'");
+                          AND TABLE_NAME = '" . $conn->real_escape_string($table) . "'
+                          AND COLUMN_NAME = '" . $conn->real_escape_string($column) . "'");
     if ($r && $row = $r->fetch_assoc()) {
         return strpos($row['EXTRA'], 'auto_increment') !== false;
     }
@@ -59,20 +66,20 @@ function colIsAutoIncrement($conn, $table, $column) {
 function tableExists($conn, $table) {
     $r = $conn->query("SELECT 1 FROM information_schema.TABLES
                         WHERE TABLE_SCHEMA = DATABASE()
-                          AND TABLE_NAME = '$table'");
+                          AND TABLE_NAME = '" . $conn->real_escape_string($table) . "'");
     return $r && $r->num_rows > 0;
 }
 
 function indexExists($conn, $table, $index) {
     $r = $conn->query("SELECT 1 FROM information_schema.STATISTICS
                         WHERE TABLE_SCHEMA = DATABASE()
-                          AND TABLE_NAME = '$table'
-                          AND INDEX_NAME = '$index'");
+                          AND TABLE_NAME = '" . $conn->real_escape_string($table) . "'
+                          AND INDEX_NAME = '" . $conn->real_escape_string($index) . "'");
     return $r && $r->num_rows > 0;
 }
 
 function seedRow($conn, $table, $uniqueCol, $uniqueVal, $data) {
-    $r = $conn->query("SELECT 1 FROM `$table` WHERE `$uniqueCol` = '$uniqueVal'");
+    $r = $conn->query("SELECT 1 FROM `$table` WHERE `$uniqueCol` = '" . $conn->real_escape_string($uniqueVal) . "'");
     if ($r && $r->num_rows > 0) {
         return false; // already exists
     }
@@ -116,7 +123,83 @@ if ($conn->connect_error) {
 $conn->set_charset('utf8mb4');
 msg('ok', "Connected.\n");
 
-// ─── 1. produk table ─────────────────────────────────────────────────────────
+// ─── 1. kategori_produk table (dibuat lebih dulu karena relasi) ────────────
+echo "\n═══ TABLE: kategori_produk ═══\n";
+
+if (!tableExists($conn, 'kategori_produk')) {
+    $conn->query("CREATE TABLE `kategori_produk` (
+        `id` int NOT NULL AUTO_INCREMENT,
+        `nama_kategori` varchar(50) NOT NULL,
+        `icon` varchar(50) NOT NULL,
+        `warna` varchar(20) NOT NULL,
+        `status` enum('active','inactive') DEFAULT 'active',
+        `store_id` int DEFAULT NULL,
+        `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        KEY `idx_kategori_status` (`status`),
+        KEY `idx_kategori_store` (`store_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    msg('ok', "Table `kategori_produk` created.");
+} else {
+    msg('skip', "Table `kategori_produk` already exists.");
+}
+
+// Add missing columns for kategori_produk
+$kategoriCols = [
+    'store_id' => "ADD COLUMN `store_id` int DEFAULT NULL AFTER `status`",
+    'created_at' => "ADD COLUMN `created_at` timestamp DEFAULT CURRENT_TIMESTAMP AFTER `store_id`",
+];
+foreach ($kategoriCols as $col => $alter) {
+    if (!colExists($conn, 'kategori_produk', $col)) {
+        $conn->query("ALTER TABLE `kategori_produk` $alter");
+        msg('ok', "Column `kategori_produk.$col` added.");
+    } else {
+        msg('skip', "Column `kategori_produk.$col` already exists.");
+    }
+}
+
+// Fix AUTO_INCREMENT on kategori_produk.id
+if (!colIsAutoIncrement($conn, 'kategori_produk', 'id')) {
+    $conn->query("ALTER TABLE `kategori_produk` MODIFY COLUMN `id` INT NOT NULL AUTO_INCREMENT");
+    msg('ok', "Column `kategori_produk.id` set to AUTO_INCREMENT.");
+} else {
+    msg('skip', "Column `kategori_produk.id` is already AUTO_INCREMENT.");
+}
+
+// Seed kategori_produk
+$kategoriSeed = [
+    ['id' => 1, 'nama_kategori' => 'Pulsa',          'icon' => 'fa-mobile-alt',           'warna' => 'blue',   'status' => 'active'],
+    ['id' => 2, 'nama_kategori' => 'Kuota Internet',  'icon' => 'fa-wifi',                 'warna' => 'green',  'status' => 'active'],
+    ['id' => 3, 'nama_kategori' => 'Token Listrik',   'icon' => 'fa-bolt',                 'warna' => 'yellow', 'status' => 'active'],
+    ['id' => 4, 'nama_kategori' => 'Transfer Tunai',  'icon' => 'fa-money-bill-transfer',   'warna' => 'purple', 'status' => 'active'],
+    ['id' => 5, 'nama_kategori' => 'Game',             'icon' => 'fa-gamepad',               'warna' => '#8b5cf6', 'status' => 'active'],
+];
+foreach ($kategoriSeed as $kat) {
+    $r = $conn->query("SELECT 1 FROM `kategori_produk` WHERE `id` = " . intval($kat['id']));
+    if ($r && $r->num_rows > 0) {
+        // Update existing - perbaiki: gunakan escaping yang benar
+        $updateSql = "UPDATE `kategori_produk` SET
+                      `nama_kategori` = '" . $conn->real_escape_string($kat['nama_kategori']) . "',
+                      `icon` = '" . $conn->real_escape_string($kat['icon']) . "',
+                      `warna` = '" . $conn->real_escape_string($kat['warna']) . "',
+                      `status` = '" . $conn->real_escape_string($kat['status']) . "'
+                      WHERE `id` = " . intval($kat['id']);
+        $conn->query($updateSql);
+        msg('skip', "Kategori [{$kat['id']}] {$kat['nama_kategori']} — updated.");
+    } else {
+        // Insert new - perbaiki: escape dengan benar
+        $insertSql = "INSERT INTO `kategori_produk` (`id`, `nama_kategori`, `icon`, `warna`, `status`) 
+                      VALUES (" . intval($kat['id']) . ",
+                              '" . $conn->real_escape_string($kat['nama_kategori']) . "',
+                              '" . $conn->real_escape_string($kat['icon']) . "',
+                              '" . $conn->real_escape_string($kat['warna']) . "',
+                              '" . $conn->real_escape_string($kat['status']) . "')";
+        $conn->query($insertSql);
+        msg('ok', "Kategori [{$kat['id']}] {$kat['nama_kategori']} — inserted.");
+    }
+}
+
+// ─── 2. produk table ─────────────────────────────────────────────────────────
 echo "\n═══ TABLE: produk ═══\n";
 
 if (!tableExists($conn, 'produk')) {
@@ -137,14 +220,15 @@ if (!tableExists($conn, 'produk')) {
         PRIMARY KEY (`id`),
         KEY `idx_produk_kategori` (`kategori_id`),
         KEY `idx_produk_status` (`status`),
-        KEY `idx_produk_kode` (`kode_produk`)
+        KEY `idx_produk_kode` (`kode_produk`),
+        CONSTRAINT `fk_produk_kategori` FOREIGN KEY (`kategori_id`) REFERENCES `kategori_produk` (`id`) ON DELETE RESTRICT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     msg('ok', "Table `produk` created.");
 } else {
     msg('skip', "Table `produk` already exists.");
 }
 
-// Add missing columns
+// Add missing columns to produk
 $produkCols = [
     'source_aggregator' => "ADD COLUMN `source_aggregator` varchar(50) NOT NULL DEFAULT 'digiflazz' AFTER `provider`",
     'nominal_display'   => "ADD COLUMN `nominal_display` varchar(50) DEFAULT NULL AFTER `nominal`",
@@ -160,6 +244,20 @@ foreach ($produkCols as $col => $alter) {
     }
 }
 
+// Add foreign key constraint for kategori_id if not exists
+$r = $conn->query("SELECT 1 FROM information_schema.TABLE_CONSTRAINTS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = 'produk'
+                      AND CONSTRAINT_NAME = 'fk_produk_kategori'");
+if (!$r || $r->num_rows == 0) {
+    $conn->query("ALTER TABLE `produk`
+                  ADD CONSTRAINT `fk_produk_kategori`
+                  FOREIGN KEY (`kategori_id`) REFERENCES `kategori_produk` (`id`) ON DELETE RESTRICT");
+    msg('ok', "Foreign key `fk_produk_kategori` added.");
+} else {
+    msg('skip', "Foreign key `fk_produk_kategori` already exists.");
+}
+
 // Fix AUTO_INCREMENT on produk.id
 if (!colIsAutoIncrement($conn, 'produk', 'id')) {
     $conn->query("ALTER TABLE `produk` MODIFY COLUMN `id` INT NOT NULL AUTO_INCREMENT");
@@ -168,7 +266,7 @@ if (!colIsAutoIncrement($conn, 'produk', 'id')) {
     msg('skip', "Column `produk.id` is already AUTO_INCREMENT.");
 }
 
-// ─── 2. product_pricing table ───────────────────────────────────────────────
+// ─── 3. product_pricing table ───────────────────────────────────────────────
 echo "\n═══ TABLE: product_pricing ═══\n";
 
 if (!tableExists($conn, 'product_pricing')) {
@@ -197,7 +295,7 @@ if (!tableExists($conn, 'product_pricing')) {
     msg('skip', "Table `product_pricing` already exists.");
 }
 
-// Add missing columns
+// Add missing columns to product_pricing
 $ppCols = [
     'seller_name'   => "ADD COLUMN `seller_name` varchar(100) NOT NULL DEFAULT 'default' AFTER `aggregator_sku`",
     'success_rate'  => "ADD COLUMN `success_rate` decimal(5,1) DEFAULT '0.0' AFTER `harga_jual`",
@@ -221,7 +319,7 @@ if (!colIsAutoIncrement($conn, 'product_pricing', 'id')) {
     msg('skip', "Column `product_pricing.id` is already AUTO_INCREMENT.");
 }
 
-// Add FK constraint
+// Add FK constraint if not exists
 $r = $conn->query("SELECT 1 FROM information_schema.TABLE_CONSTRAINTS
                     WHERE TABLE_SCHEMA = DATABASE()
                       AND TABLE_NAME = 'product_pricing'
@@ -249,7 +347,7 @@ foreach (['uk_sku_agg_seller'] as $idx) {
 foreach ([
     'uk_pp_product_agg_seller' => "ADD UNIQUE INDEX `uk_pp_product_agg_seller` (`product_id`, `aggregator`, `seller_name`)",
     'idx_product_pricing_sku'    => "ADD INDEX `idx_product_pricing_sku` (`sku_code`)",
-    'idx_product_pricing_agg'    => "ADD INDEX `idx_product_pricing_aggregator` (`aggregator`)",
+    'idx_product_pricing_aggregator'    => "ADD INDEX `idx_product_pricing_aggregator` (`aggregator`)",
     'idx_product_pricing_active' => "ADD INDEX `idx_product_pricing_active` (`is_active`)",
 ] as $idx => $alter) {
     if (!indexExists($conn, 'product_pricing', $idx)) {
@@ -258,59 +356,6 @@ foreach ([
     } else {
         msg('skip', "Index `$idx` already exists.");
     }
-}
-
-// ─── 3. kategori_produk table ───────────────────────────────────────────────
-echo "\n═══ TABLE: kategori_produk ═══\n";
-
-if (!tableExists($conn, 'kategori_produk')) {
-    $conn->query("CREATE TABLE `kategori_produk` (
-        `id` int NOT NULL AUTO_INCREMENT,
-        `nama_kategori` varchar(50) NOT NULL,
-        `icon` varchar(50) NOT NULL,
-        `warna` varchar(20) NOT NULL,
-        `status` enum('active','inactive') DEFAULT 'active',
-        `store_id` int DEFAULT NULL,
-        `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-    msg('ok', "Table `kategori_produk` created.");
-} else {
-    msg('skip', "Table `kategori_produk` already exists.");
-}
-
-$kategoriSeed = [
-    ['id' => 1, 'nama_kategori' => 'Pulsa',          'icon' => 'fa-mobile-alt',           'warna' => 'blue',   'status' => 'active'],
-    ['id' => 2, 'nama_kategori' => 'Kuota Internet',  'icon' => 'fa-wifi',                 'warna' => 'green',  'status' => 'active'],
-    ['id' => 3, 'nama_kategori' => 'Token Listrik',   'icon' => 'fa-bolt',                 'warna' => 'yellow', 'status' => 'active'],
-    ['id' => 4, 'nama_kategori' => 'Transfer Tunai',  'icon' => 'fa-money-bill-transfer',   'warna' => 'purple', 'status' => 'active'],
-    ['id' => 5, 'nama_kategori' => 'Game',             'icon' => 'fa-gamepad',               'warna' => '#8b5cf6', 'status' => 'active'],
-];
-foreach ($kategoriSeed as $kat) {
-    $r = $conn->query("SELECT 1 FROM `kategori_produk` WHERE `id` = {$kat['id']}");
-    if ($r && $r->num_rows > 0) {
-        $conn->query("UPDATE `kategori_produk` SET
-                      `nama_kategori` = '{$kat['nama_kategori']}',
-                      `icon` = '{$kat['icon']}',
-                      `warna` = '{$kat['warna']}',
-                      `status` = '{$kat['status']}'
-                      WHERE `id` = {$kat['id']}");
-        msg('skip', "Kategori [{$kat['id']}] {$kat['nama_kategori']} — updated.");
-    } else {
-        $cols = implode(', ', array_keys($kat));
-        $vals = implode(', ', array_map('intval', $kat));
-        // store_id & created_at have defaults, skip
-        $conn->query("INSERT INTO `kategori_produk` ($cols) VALUES ($vals)");
-        msg('ok', "Kategori [{$kat['id']}] {$kat['nama_kategori']} — inserted.");
-    }
-}
-
-// Fix AUTO_INCREMENT on kategori_produk.id
-if (!colIsAutoIncrement($conn, 'kategori_produk', 'id')) {
-    $conn->query("ALTER TABLE `kategori_produk` MODIFY COLUMN `id` INT NOT NULL AUTO_INCREMENT");
-    msg('ok', "Column `kategori_produk.id` set to AUTO_INCREMENT.");
-} else {
-    msg('skip', "Column `kategori_produk.id` is already AUTO_INCREMENT.");
 }
 
 // ─── 4. aggregators table ───────────────────────────────────────────────────
@@ -360,14 +405,15 @@ $aggregatorSeed = [
     ],
 ];
 foreach ($aggregatorSeed as $agg) {
-    $r = $conn->query("SELECT 1 FROM `aggregators` WHERE `name` = '{$agg['name']}'");
+    $r = $conn->query("SELECT 1 FROM `aggregators` WHERE `name` = '" . $conn->real_escape_string($agg['name']) . "'");
     if ($r && $r->num_rows > 0) {
-        $conn->query("UPDATE `aggregators` SET
-                      `label` = '{$agg['label']}',
-                      `api_url` = '{$agg['api_url']}',
-                      `is_active` = '{$agg['is_active']}',
-                      `is_default` = '{$agg['is_default']}'
-                      WHERE `name` = '{$agg['name']}'");
+        $updateSql = "UPDATE `aggregators` SET
+                      `label` = '" . $conn->real_escape_string($agg['label']) . "',
+                      `api_url` = '" . $conn->real_escape_string($agg['api_url']) . "',
+                      `is_active` = '" . $conn->real_escape_string($agg['is_active']) . "',
+                      `is_default` = '" . $conn->real_escape_string($agg['is_default']) . "'
+                      WHERE `name` = '" . $conn->real_escape_string($agg['name']) . "'";
+        $conn->query($updateSql);
         msg('skip', "Aggregator '{$agg['name']}' — updated.");
     } else {
         $cols = implode(', ', array_keys($agg));
@@ -377,26 +423,41 @@ foreach ($aggregatorSeed as $agg) {
     }
 }
 
-// ─── 5. produk.source_aggregator FK cleanup ──────────────────────────────────
+// ─── 5. produk.source_aggregator cleanup ──────────────────────────────────
 echo "\n═══ CLEANUP: produk ═══\n";
-$r = $conn->query("SELECT id FROM produk WHERE source_aggregator = '' OR source_aggregator IS NULL LIMIT 10");
+$r = $conn->query("SELECT id FROM produk WHERE source_aggregator = '' OR source_aggregator IS NULL");
 if ($r && $r->num_rows > 0) {
+    $affected = $r->num_rows;
     $conn->query("UPDATE produk SET source_aggregator = 'digiflazz'
                   WHERE source_aggregator = '' OR source_aggregator IS NULL");
-    msg('ok', "Fixed {$r->num_rows} produk with empty source_aggregator → 'digiflazz'.");
+    msg('ok', "Fixed $affected produk with empty source_aggregator → 'digiflazz'.");
 } else {
     msg('skip', "No produk with empty source_aggregator.");
 }
 
 // ─── 6. product_pricing seller_name fix ────────────────────────────────────
 echo "\n═══ CLEANUP: product_pricing ═══\n";
-$r = $conn->query("SELECT id FROM product_pricing WHERE seller_name = '' OR seller_name IS NULL LIMIT 10");
+$r = $conn->query("SELECT id FROM product_pricing WHERE seller_name = '' OR seller_name IS NULL");
 if ($r && $r->num_rows > 0) {
+    $affected = $r->num_rows;
     $conn->query("UPDATE product_pricing SET seller_name = 'default'
                   WHERE seller_name = '' OR seller_name IS NULL");
-    msg('ok', "Fixed {$r->num_rows} product_pricing with empty seller_name → 'default'.");
+    msg('ok', "Fixed $affected product_pricing with empty seller_name → 'default'.");
 } else {
     msg('skip', "No product_pricing with empty seller_name.");
+}
+
+// ─── 7. Verify all tables and relationships ─────────────────────────────────
+echo "\n═══ VERIFICATION ═══\n";
+
+$tables = ['kategori_produk', 'produk', 'product_pricing', 'aggregators'];
+foreach ($tables as $table) {
+    $r = $conn->query("SELECT COUNT(*) as count FROM `$table`");
+    if ($r && $row = $r->fetch_assoc()) {
+        msg('ok', "Table `$table` has {$row['count']} records.");
+    } else {
+        msg('warn', "Could not verify table `$table`.");
+    }
 }
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
