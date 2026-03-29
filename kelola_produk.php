@@ -1050,22 +1050,23 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
         </div>
     </div>
 
-    <div class="overflow-x-auto">
+    <div class="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
         <table class="w-full">
-            <thead>
-                <tr class="table-header-row">
-                    <th style="width:40px;">
-                        <input type="checkbox" id="selectAll" onclick="toggleAll(this)" style="width:18px;height:18px;cursor:pointer;">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left">
+                        <input type="checkbox" id="selectAll" onclick="toggleAll(this)" class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
                     </th>
-                    <th class="text-left">ID</th>
-                    <th class="text-left">Produk</th>
-                    <th class="text-left">Kategori</th>
-                    <th class="text-left">Provider</th>
-                    <th class="text-left">Harga & Profit</th>
-                    <th class="text-left">Status</th>
-                    <th class="text-left">Aksi</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Produk</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kategori</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Provider</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Harga & Profit</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
                 </tr>
             </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
             <tbody>
                 <?php while ($p = $produk->fetch_assoc()): 
                     $profit = $p['harga_jual'] - $p['harga_modal'];
@@ -1075,32 +1076,32 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
                     if ($p['kategori_id'] == 2) $category_class = 'category-kuota';
                     if ($p['kategori_id'] == 3) $category_class = 'category-listrik';
                 ?>
-                <tr class="table-row <?= $category_class ?>">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <input type="checkbox" class="produk-check" value="<?= $p['id'] ?>" onclick="updateBulkBar()">
+                <tr class="hover:bg-gray-50 transition-colors duration-150 <?= $category_class ?>">
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <input type="checkbox" class="produk-check w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" value="<?= $p['id'] ?>" onclick="updateBulkBar()">
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#<?= $p['id'] ?></td>
-                    <td class="px-6 py-4">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0 h-10 w-10">
-                                <div class="h-10 w-10 rounded-full <?= $category_class == 'category-pulsa' ? 'bg-indigo-100' : ($category_class == 'category-kuota' ? 'bg-green-100' : 'bg-yellow-100') ?> flex items-center justify-center">
-                                    <i class="fas <?= $category_class == 'category-pulsa' ? 'fa-mobile-alt text-indigo-600' : ($category_class == 'category-kuota' ? 'fa-wifi text-green-600' : 'fa-bolt text-yellow-600') ?>"></i>
-                                </div>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">#<?= $p['id'] ?></td>
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-3">
+                            <div class="flex-shrink-0 h-10 w-10 rounded-lg <?= $category_class == 'category-pulsa' ? 'bg-indigo-100' : ($category_class == 'category-kuota' ? 'bg-green-100' : 'bg-yellow-100') ?> flex items-center justify-center">
+                                <i class="fas <?= $category_class == 'category-pulsa' ? 'fa-mobile-alt text-indigo-600' : ($category_class == 'category-kuota' ? 'fa-wifi text-green-600' : 'fa-bolt text-yellow-600') ?>"></i>
                             </div>
-                            <div class="ml-4">
+                            <div>
                                 <div class="text-sm font-medium text-gray-900"><?= htmlspecialchars($p['nama_produk']) ?></div>
-                                <div class="text-sm text-gray-500">Kode: <?= htmlspecialchars($p['kode_produk']) ?></div>
-                                <div class="text-sm text-gray-500">Nominal: <?= rupiah($p['nominal']) ?></div>
+                                <div class="text-xs text-gray-500">Kode: <?= htmlspecialchars($p['kode_produk']) ?></div>
+                                <div class="text-xs text-gray-500">Nominal: <?= rupiah($p['nominal']) ?></div>
                             </div>
                         </div>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm text-gray-900"><?= htmlspecialchars($p['nama_kategori'] ?? '-') ?></div>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            <?= htmlspecialchars($p['nama_kategori'] ?? '-') ?>
+                        </span>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
+                    <td class="px-4 py-3 whitespace-nowrap">
                         <div class="text-sm font-medium text-gray-900"><?= htmlspecialchars($p['provider']) ?></div>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
+                    <td class="px-4 py-3 whitespace-nowrap">
                         <div class="space-y-1">
                             <div class="flex justify-between items-center">
                                 <span class="text-xs text-gray-500">Modal:</span>
@@ -1119,20 +1120,20 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
                             </div>
                         </div>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
+                    <td class="px-4 py-3 whitespace-nowrap">
                         <form method="POST" action="" class="inline">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                             <input type="hidden" name="action" value="update_status">
                             <input type="hidden" name="produk_id" value="<?= $p['id'] ?>">
                             <input type="hidden" name="status" value="<?= $p['status'] == 'active' ? 'inactive' : 'active' ?>">
-                            <button type="submit"
-                                    class="badge <?= $p['status'] == 'active' ? 'badge-active' : 'badge-inactive' ?> hover:opacity-80 transition">
+                            <button type="submit" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition <?= $p['status'] == 'active' ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' ?>">
+                                <?= $p['status'] == 'active' ? '<i class="fas fa-check-circle mr-1"></i>' : '<i class="fas fa-times-circle mr-1"></i>' ?>
                                 <?= ucfirst($p['status']) ?>
                             </button>
                         </form>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div class="flex gap-2">
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="flex items-center gap-1">
                             <button onclick="openEditModal(
                                 <?= $p['id'] ?>, 
                                 '<?= htmlspecialchars($p['kode_produk']) ?>', 
@@ -1144,11 +1145,11 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
                                 <?= $p['harga_modal'] ?>, 
                                 '<?= $p['status'] ?>'
                             )" 
-                                    class="text-blue-600 hover:text-blue-900" title="Edit">
+                                    class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </button>
                             <button onclick="openDeleteModal(<?= $p['id'] ?>, '<?= htmlspecialchars($p['nama_produk']) ?>')" 
-                                    class="text-red-600 hover:text-red-900" title="Hapus">
+                                    class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition" title="Hapus">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -1161,11 +1162,11 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
 
     <!-- Pagination -->
     <?php if ($total_pages > 1): ?>
-    <div class="pagination-wrapper">
-        <div class="pagination-info">
-            Menampilkan <?= $offset + 1 ?> - <?= min($offset + $per_page, $total_records) ?> dari <?= $total_records ?> produk
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 bg-white border-t border-gray-200">
+        <div class="text-sm text-gray-600">
+            Menampilkan <span class="font-medium"><?= $offset + 1 ?></span> - <span class="font-medium"><?= min($offset + $per_page, $total_records) ?></span> dari <span class="font-medium"><?= $total_records ?></span> produk
         </div>
-        <div class="pagination">
+        <div class="flex items-center gap-1">
             <?php
             // Build pagination URL with existing filters
             $paginationUrl = function($page) use ($search, $kategori_id, $provider, $status_filter, $per_page) {
@@ -1185,34 +1186,34 @@ $totalListrik = $conn->query("SELECT COUNT(*) as total FROM produk WHERE kategor
 
             if ($current_page > 1):
             ?>
-                <a href="<?= $paginationUrl(1) ?>" class="page-btn" title="First">
+                <a href="<?= $paginationUrl(1) ?>" class="px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-600 bg-white hover:bg-gray-50 hover:border-gray-400 transition" title="First">
                     <i class="fas fa-angle-double-left"></i>
                 </a>
-                <a href="<?= $paginationUrl($current_page - 1) ?>" class="page-btn" title="Previous">
+                <a href="<?= $paginationUrl($current_page - 1) ?>" class="px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-600 bg-white hover:bg-gray-50 hover:border-gray-400 transition" title="Previous">
                     <i class="fas fa-chevron-left"></i>
                 </a>
             <?php endif; ?>
 
             <?php for ($i = $start; $i <= $end; $i++): ?>
                 <?php if ($i == $current_page): ?>
-                    <span class="page-btn active"><?= $i ?></span>
+                    <span class="px-3 py-2 text-sm font-medium border rounded-lg bg-indigo-600 text-white border-indigo-600"><?= $i ?></span>
                 <?php else: ?>
-                    <a href="<?= $paginationUrl($i) ?>" class="page-btn"><?= $i ?></a>
+                    <a href="<?= $paginationUrl($i) ?>" class="px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-600 bg-white hover:bg-gray-50 hover:border-gray-400 transition"><?= $i ?></a>
                 <?php endif; ?>
             <?php endfor; ?>
 
             <?php if ($current_page < $total_pages): ?>
-                <a href="<?= $paginationUrl($current_page + 1) ?>" class="page-btn" title="Next">
+                <a href="<?= $paginationUrl($current_page + 1) ?>" class="px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-600 bg-white hover:bg-gray-50 hover:border-gray-400 transition" title="Next">
                     <i class="fas fa-chevron-right"></i>
                 </a>
-                <a href="<?= $paginationUrl($total_pages) ?>" class="page-btn" title="Last">
+                <a href="<?= $paginationUrl($total_pages) ?>" class="px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-600 bg-white hover:bg-gray-50 hover:border-gray-400 transition" title="Last">
                     <i class="fas fa-angle-double-right"></i>
                 </a>
             <?php endif; ?>
         </div>
-        <div class="pagination-per-page">
-            <label>Per page:</label>
-            <select onchange="window.location.href='?<?= http_build_query(array_merge($_GET, ['per_page' => ''])) ?>' + this.value + '&page=1'">
+        <div class="flex items-center gap-2">
+            <label class="text-sm text-gray-600">Per halaman:</label>
+            <select onchange="window.location.href='?<?= http_build_query(array_merge($_GET, ['per_page' => ''])) ?>' + this.value + '&page=1'" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                 <?php foreach ([10, 20, 50, 100] as $limit): ?>
                     <option value="<?= $limit ?>" <?= $per_page == $limit ? 'selected' : '' ?>><?= $limit ?></option>
                 <?php endforeach; ?>
