@@ -660,6 +660,8 @@ function detectProvider(phoneNumber) {
         { provider = 'Indosat'; badgeClass = 'badge-indosat'; }
     else if (['0817','0818','0819','0859','0877','0878'].some(p => prefix.startsWith(p)))
         { provider = 'XL'; badgeClass = 'badge-xl'; }
+    else if (['0831','0832','0833','0838'].some(p => prefix.startsWith(p)))
+        { provider = 'Axis'; badgeClass = 'badge-axis'; }
     else if (['0895','0896','0897','0898','0899'].some(p => prefix.startsWith(p)))
         { provider = 'Tri'; badgeClass = 'badge-tri'; }
     else if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].some(p => prefix.startsWith(p)))
