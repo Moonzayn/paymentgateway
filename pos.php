@@ -31,7 +31,7 @@ function getStoreId($user_id) {
 
 $store = getStoreId($_SESSION['user_id']);
 
-if (!$store && $_SESSION['role'] != 'admin') {
+if (!$store && !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     setAlert('error', 'Anda belum memiliki toko. Silakan hubungi admin.');
     header("Location: index.php");
     exit;

@@ -9,8 +9,8 @@
 require_once __DIR__ . '/config.php';
 setCorsHeaders();
 
-// Must be logged in as admin
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
+// Must be logged in as admin/superadmin
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     apiError('Unauthorized', 'UNAUTHORIZED', 401);
 }
 

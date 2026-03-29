@@ -2,8 +2,8 @@
 require_once 'config.php';
 cekLogin();
 
-// Hanya admin yang bisa mengakses
-if ($_SESSION['role'] != 'admin') {
+// Hanya admin/superadmin yang bisa mengakses
+if (!in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit;
 }

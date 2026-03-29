@@ -30,7 +30,7 @@ function getUserStore($user_id) {
 
 $store = getUserStore($_SESSION['user_id']);
 
-if (!$store && $_SESSION['role'] != 'admin') {
+if (!$store && !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     setAlert('error', 'Anda belum memiliki toko');
     header("Location: index.php");
     exit;

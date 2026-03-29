@@ -153,7 +153,7 @@ function cekLogin() {
 
 // Cek Admin
 function cekAdmin() {
-    if (!isset($_SESSION['role']) || $_SESSION['role'] != 'admin') {
+    if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
         header("Location: index.php");
         exit;
     }

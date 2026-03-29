@@ -9,8 +9,8 @@
 require_once 'config.php';
 cekLogin(); // Require login
 
-// Only admin can access
-if (!isset($_SESSION['role']) || $_SESSION['role'] != 'admin') {
+// Only admin/superadmin can access
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     http_response_code(403);
     die('Access denied. Admin only.');
 }
@@ -30,7 +30,7 @@ if (!empty($cron_token) && $cron_token !== $expected_cron_token) {
 
 // Also verify session for web access
 if (php_sapi_name() !== 'cli' && empty($cron_token)) {
-    if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
+    if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
         http_response_code(403);
         die('Access denied');
     }
