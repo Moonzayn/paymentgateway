@@ -444,26 +444,30 @@ include 'layout.php';
             $displayCount = min(20, $totalProduk);
             for ($i = 0; $i < $displayCount; $i++):
                 $p = $produkList[$i];
-                $kategori = getKategoriKuota($p['produk_nama']);
+                $kategori = getKategoriKuota($p['produk_nama'] ?? '');
                 $kat = $daftarKategori[$kategori] ?? $daftarKategori['lainnya'];
             ?>
+            <?php $produkNama = $p['produk_nama'] ?? ''; ?>
+            <?php $produkId = $p['id'] ?? ''; ?>
+            <?php $produkHarga = $p['harga_jual'] ?? 0; ?>
+            <?php $produkNominal = $p['nominal'] ?? 0; ?>
             <div class="product-card"
-                 data-id="<?= $p['id'] ?>"
-                 data-name="<?= htmlspecialchars($p['produk_nama'], ENT_QUOTES) ?>"
-                 data-price="<?= $p['harga_jual'] ?>"
+                 data-id="<?= $produkId ?>"
+                 data-name="<?= htmlspecialchars($produkNama, ENT_QUOTES) ?>"
+                 data-price="<?= $produkHarga ?>"
                  data-kategori="<?= $kategori ?>"
                  onclick="selectProduct(this)">
                 <div class="product-selector"></div>
                 <div class="product-detail">
-                    <div class="product-name"><?= htmlspecialchars($p['produk_nama']) ?></div>
+                    <div class="product-name"><?= htmlspecialchars($produkNama) ?></div>
                     <div class="product-meta">
                         <span class="product-badge"><i class="fas fa-signal"></i> 4G/LTE</span>
                         <span class="product-badge"><i class="fas <?= $kat['icon'] ?>"></i> <?= $kat['label'] ?></span>
                     </div>
                 </div>
                 <div class="product-pricing">
-                    <div class="product-price"><?= rupiah($p['harga_jual']) ?></div>
-                    <div class="product-quota"><?= formatBytes($p['nominal']) ?></div>
+                    <div class="product-price"><?= rupiah($produkHarga) ?></div>
+                    <div class="product-quota"><?= formatBytes($produkNominal) ?></div>
                 </div>
             </div>
             <?php endfor; ?>
@@ -485,7 +489,7 @@ include 'layout.php';
             window.providerProducts['<?= strtolower($provider) ?>'] = <?= json_encode(array_map(function($p) {
                 return [
                     'id' => $p['id'],
-                    'name' => htmlspecialchars($p['produk_nama'], ENT_QUOTES),
+                    'name' => htmlspecialchars($p['produk_nama'] ?? '', ENT_QUOTES),
                     'price' => $p['harga_jual'],
                     'nominal' => $p['nominal'],
                     'kategori' => getKategoriKuota($p['produk_nama'])

@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         } else {
             // Insert produk
             $stmt = $conn->prepare("INSERT INTO produk (kode_produk, nama_produk, kategori_id, provider, nominal, harga_jual, harga_modal, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssisd ddds", $kode_produk, $nama_produk, $kategori_id, $provider, $nominal, $harga_jual, $harga_modal, $status);
+            $stmt->bind_param("ssisddds", $kode_produk, $nama_produk, $kategori_id, $provider, $nominal, $harga_jual, $harga_modal, $status);
 
             if ($stmt->execute()) {
                 setAlert('success', 'Produk berhasil ditambahkan!');
