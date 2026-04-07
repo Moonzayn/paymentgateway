@@ -424,6 +424,124 @@ include 'layout.php';
     </div>
 </div>
 
+<!-- ── Kategori Prepaid ── -->
+<div class="section-card delay-300" style="margin-bottom:1.5rem;">
+    <div class="section-header">
+        <div>
+            <h3 class="section-title"><i class="fas fa-star"></i> Prepaid</h3>
+        </div>
+    </div>
+    <div style="padding:1rem 1.25rem;">
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0.5rem;" class="kategori-scroll">
+            <a href="pulsa.php" class="kategori-item">
+                <div class="kategori-icon" style="background:#dbeafe;"><i class="fas fa-mobile-alt" style="color:#2563eb;"></i></div>
+                <span class="kategori-label">Pulsa</span>
+            </a>
+            <a href="kuota.php" class="kategori-item">
+                <div class="kategori-icon" style="background:#dcfce7;"><i class="fas fa-wifi" style="color:#16a34a;"></i></div>
+                <span class="kategori-label">Paket Data</span>
+            </a>
+            <a href="listrik.php" class="kategori-item">
+                <div class="kategori-icon" style="background:#fef3c7;"><i class="fas fa-bolt" style="color:#d97706;"></i></div>
+                <span class="kategori-label">Token PLN</span>
+            </a>
+            <a href="#" class="kategori-item" onclick="alert('Fitur Wallet akan segera hadir!');return false;">
+                <div class="kategori-icon" style="background:#fce7f3;"><i class="fas fa-wallet" style="color:#db2777;"></i></div>
+                <span class="kategori-label">Wallet</span>
+            </a>
+            <a href="#" class="kategori-item" onclick="alert('Fitur Bank Transfer akan segera hadir!');return false;">
+                <div class="kategori-icon" style="background:#e0e7ff;"><i class="fas fa-university" style="color:#4338ca;"></i></div>
+                <span class="kategori-label">Bank Transfer</span>
+            </a>
+            <a href="game.php" class="kategori-item">
+                <div class="kategori-icon" style="background:#f3e8ff;"><i class="fas fa-gamepad" style="color:#7c3aed;"></i></div>
+                <span class="kategori-label">Games</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- ── Kategori Postpaid ── -->
+<div class="section-card delay-400" style="margin-bottom:1.5rem;">
+    <div class="section-header">
+        <div>
+            <h3 class="section-title"><i class="fas fa-file-invoice-dollar"></i> Postpaid</h3>
+        </div>
+    </div>
+    <div style="padding:1rem 1.25rem;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;" class="kategori-scroll">
+            <a href="listrik.php" class="kategori-item">
+                <div class="kategori-icon" style="background:#fef3c7;"><i class="fas fa-bolt" style="color:#d97706;"></i></div>
+                <span class="kategori-label">PLN</span>
+            </a>
+            <a href="#" class="kategori-item" onclick="alert('Fitur PDAM akan segera hadir!');return false;">
+                <div class="kategori-icon" style="background:#cffafe;"><i class="fas fa-tint" style="color:#0891b2;"></i></div>
+                <span class="kategori-label">PDAM</span>
+            </a>
+            <a href="#" class="kategori-item" onclick="alert('Fitur TV & Internet akan segera hadir!');return false;">
+                <div class="kategori-icon" style="background:#fae8ff;"><i class="fas fa-tv" style="color:#c026d3;"></i></div>
+                <span class="kategori-label">TV & Internet</span>
+            </a>
+            <a href="#" class="kategori-item" onclick="alert('Fitur Telpon akan segera hadir!');return false;">
+                <div class="kategori-icon" style="background:#fee2e2;"><i class="fas fa-phone" style="color:#dc2626;"></i></div>
+                <span class="kategori-label">Telpon</span>
+            </a>
+            <a href="#" class="kategori-item" onclick="alert('Fitur GAS akan segera hadir!');return false;">
+                <div class="kategori-icon" style="background:#ffedd5;"><i class="fas fa-fire" style="color:#ea580c;"></i></div>
+                <span class="kategori-label">GAS</span>
+            </a>
+            <a href="#" class="kategori-item" onclick="alert('Fitur BPJS akan segera hadir!');return false;">
+                <div class="kategori-icon" style="background:#dbeafe;"><i class="fas fa-notes-medical" style="color:#2563eb;"></i></div>
+                <span class="kategori-label">BPJS</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.kategori-item {
+    display:flex; flex-direction:column; align-items:center;
+    padding:0.75rem 0.5rem; background:#f8fafc; border:1px solid var(--border);
+    border-radius:12px; text-decoration:none; transition:all 0.2s ease;
+}
+.kategori-item:hover {
+    background:white; transform:translateY(-2px);
+    box-shadow:0 4px 12px rgba(99,83,216,0.1);
+}
+.kategori-icon {
+    width:36px; height:36px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:0.375rem; font-size:0.875rem;
+}
+.kategori-label {
+    font-size:0.688rem; font-weight:500; color:var(--text);
+    text-align:center;
+}
+@media (min-width:640px) {
+    .kategori-item { padding:1rem 0.5rem; }
+    .kategori-icon { width:40px; height:40px; font-size:1rem; margin-bottom:0.5rem; }
+    .kategori-label { font-size:0.75rem; }
+}
+</style>
+
+<!-- Mobile: Horizontal Scroll Kategori -->
+<style>
+@media (max-width:639px) {
+    .kategori-scroll {
+        display:flex; gap:0.5rem; overflow-x:auto; padding-bottom:0.5rem;
+        -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    }
+    .kategori-scroll::-webkit-scrollbar { display:none; }
+    .kategori-scroll .kategori-item {
+        flex-shrink:0; min-width:80px; padding:0.75rem 0.75rem;
+    }
+    .kategori-scroll .kategori-icon {
+        width:32px; height:32px; font-size:0.75rem; margin-bottom:0.375rem;
+    }
+    .kategori-scroll .kategori-label { font-size:0.625rem; }
+}
+</style>
+
 <!-- ── Content Grid ── -->
 <div class="content-grid">
 
