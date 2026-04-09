@@ -1,27 +1,29 @@
 <?php
-session_start();
+error_reporting(0);
 
-require_once 'config.php';
-
-// Handle API request from mobile app (ONLY if explicitly requests JSON)
+// Handle API request from mobile app BEFORE any output
 $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
-$isApiRequest = (strpos($contentType, 'application/json') !== false);
+$isApiRequest = (strpos($contentType, 'application/json') !== false || strpos($contentType, 'application/x-www-form-urlencoded') !== false);
 
 if ($isApiRequest && $_SERVER['REQUEST_METHOD'] == 'POST') {
     header('Content-Type: application/json');
+    
+    require_once 'config.php';
 
-    // Rate limiting check
-    $identifier = ($_POST['username'] ?? '') . '_' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-    if (!checkLoginAttempts($identifier)) {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Terlalu banyak percobaan login. Silakan coba lagi dalam 15 menit.'
-        ]);
-        exit;
+    // Parse input data - support both JSON and form-urlencoded
+    $input = file_get_contents('php://input');
+    $username = '';
+    $password = '';
+    
+    if (strpos($contentType, 'application/json') !== false) {
+        $json = json_decode($input, true);
+        $username = trim($json['username'] ?? '');
+        $password = $json['password'] ?? '';
+    } else {
+        parse_str($input, $inputData);
+        $username = trim($inputData['username'] ?? '');
+        $password = $inputData['password'] ?? '';
     }
-
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
 
     if (empty($username) || empty($password)) {
         echo json_encode([
@@ -58,7 +60,14 @@ if ($isApiRequest && $_SERVER['REQUEST_METHOD'] == 'POST') {
                 echo json_encode([
                     'success' => true,
                     'needs_2fa' => true,
-                    'user_id' => -1,
+                    'user_id' => $user['id'],
+                    'user' => [
+                        'id' => $user['id'],
+                        'username' => $user['username'],
+                        'nama_lengkap' => $user['nama_lengkap'],
+                        'role' => $user['role'],
+                        'saldo' => (float)$user['saldo']
+                    ],
                     'csrf_token' => $_SESSION['csrf_token'],
                     'message' => 'Verifikasi 2FA diperlukan'
                 ]);

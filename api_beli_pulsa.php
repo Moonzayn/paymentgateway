@@ -10,28 +10,43 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/digiflazz.php';
 setCorsHeaders();
 
+// Detect mobile app request
+$input = json_decode(file_get_contents('php://input'), true);
+$postData = $_POST + ($input ?? []);
+
+$isMobileApp = isset($postData['user_id']) && !empty($postData['user_id']);
+
 // Must be logged in
-if (!isset($_SESSION['user_id'])) {
-    apiError('Unauthorized', 'UNAUTHORIZED', 401);
+if ($isMobileApp) {
+    $user_id = intval($postData['user_id']);
+    if ($user_id <= 0) {
+        apiError('Invalid user_id', 'INVALID_USER', 400);
+    }
+} else {
+    if (!isset($_SESSION['user_id'])) {
+        apiError('Unauthorized', 'UNAUTHORIZED', 401);
+    }
+    $user_id = $_SESSION['user_id'];
 }
 
 $conn = koneksi();
-$user_id = $_SESSION['user_id'];
 
 // Rate limit
 if (!checkRateLimit('purchase_pulsa', 10, 60)) {
     apiError('Terlalu banyak permintaan. Silakan tunggu sebentar.', 'RATE_LIMITED', 429);
 }
 
-// Validate CSRF
-$csrf = $_POST['csrf_token'] ?? '';
-if (!validateCSRFToken($csrf)) {
-    apiError('Sesi tidak valid. Silakan refresh halaman.', 'INVALID_TOKEN', 400);
+// Validate CSRF (skip for mobile app)
+if (!$isMobileApp) {
+    $csrf = $postData['csrf_token'] ?? '';
+    if (!validateCSRFToken($csrf)) {
+        apiError('Sesi tidak valid. Silakan refresh halaman.', 'INVALID_TOKEN', 400);
+    }
 }
 
 // Get params
-$no_hp = preg_replace('/[^0-9]/', '', $_POST['no_hp'] ?? '');
-$produk_id = intval($_POST['produk_id'] ?? 0);
+$no_hp = preg_replace('/[^0-9]/', '', $postData['no_hp'] ?? '');
+$produk_id = intval($postData['produk_id'] ?? 0);
 
 // Validate input
 if (strlen($no_hp) < 10) {

@@ -114,7 +114,47 @@ $queries = [
         is_manual ENUM('yes', 'no') DEFAULT 'no',
         FOREIGN KEY (transaksi_id) REFERENCES transaksi_pos(id) ON DELETE CASCADE,
         FOREIGN KEY (produk_id) REFERENCES produk_pos(id) ON DELETE SET NULL
+    )",
+    
+    "CREATE TABLE IF NOT EXISTS games (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        slug VARCHAR(50) UNIQUE NOT NULL,
+        provider VARCHAR(50) DEFAULT NULL,
+        color VARCHAR(20) DEFAULT '#6353D8',
+        icon_url VARCHAR(255),
+        needs_zone_id ENUM('yes', 'no') DEFAULT 'no',
+        is_active ENUM('yes', 'no') DEFAULT 'yes',
+        display_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )"
+];
+
+// Insert games data
+$games = [
+    ['Mobile Legends', 'mobile-legends', 'Moonton', '#3653D8', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/MLBB-2025-tiles-178x178.jpg', 'yes', 1],
+    ['Free Fire', 'free-fire', 'Garena', '#FF5272', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/free-fire-tile-codacash-new.jpg', 'no', 2],
+    ['PUBG Mobile', 'pubg-mobile', 'Tencent', '#FF8B00', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/pubgm_tile_aug2024.jpg', 'no', 3],
+    ['Genshin Impact', 'genshin-impact', 'HoYoverse', '#4B9FE8', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/genshinimpact_tile.jpg', 'no', 4],
+    ['Valorant', 'valorant', 'Riot Games', '#FF4565', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/valorant_tile.jpg', 'no', 5],
+    ['Call of Duty Mobile', 'cod-mobile', 'Activision', '#FFD2D2', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/CODM-tile-codacash-new.jpg', 'no', 6],
+    ['FIFA Mobile', 'fifa-mobile', 'EA Sports', '#E2CC71', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/EA_FC_Oct_2025.png', 'no', 7],
+    ['Honor of Kings', 'honor-of-kings', 'Tencent', '#AE6A24', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/HonorofKings_Codacash178x178.jpg', 'no', 8],
+    ['Free Fire MAX', 'free-fire-max', 'Garena', '#FF5272', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/FFMAX_tile.jpg', 'no', 9],
+    ['One Punch Man', 'one-punch-man', 'NEEDEE', '#F5A623', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/onepunchman.jpg', 'no', 10],
+    ['Blood Strike', 'blood-strike', 'Netmarble', '#FF4444', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/BloodStrike_tile.jpg', 'no', 11],
+    ['Asphalt 9', 'asphalt-9', 'Gameloft', '#2D5BE3', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/Asphalt9_tile.jpg', 'no', 12],
+    ['MapleStory M', 'maplestory-m', 'Nexon', '#FF8C00', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/MapleStoryM_tile.jpg', 'no', 13],
+    ['Ragnarok M', 'ragnarok-m', 'Gravity', '#FF6B35', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/RagnarokM_tile.jpg', 'no', 14],
+    ['League of Legends Wild Rift', 'lol-wild-rift', 'Riot Games', '#C89B3C', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/lolwildrift_tile.jpg', 'no', 15],
+    ['Arena of Valor', 'arena-of-valor', 'Tencent', '#E53935', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/AOV_tile.jpg', 'no', 16],
+    ['Higgs Domino', 'higgs-domino', 'Topkar', '#FF6B6B', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/higgs.jpg', 'no', 17],
+    ['AXE: Offline Royale', 'axe-offline-royale', 'Cubic Games', '#FFD700', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/axe.jpg', 'no', 18],
+    ['Marvel Future Fight', 'marvel-future-fight', 'Netmarble', '#E53935', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/marvel.jpg', 'no', 19],
+    ['Saint Seiya: Awakening', 'saint-seiya', 'Netmarble', '#1E90FF', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/saintseiya.jpg', 'no', 20],
+    ['Dragon Raja', 'dragon-raja', 'Archosaurus', '#FF4500', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/dragonraja.jpg', 'no', 21],
+    ['LifeAfter', 'lifeafter', 'NetEase', '#FF6B35', 'https://cdn1.codashop.com/S/content/mobile/images/product-tiles/lifeafter.jpg', 'no', 22]
 ];
 
 $success = 0;
@@ -130,6 +170,19 @@ foreach ($queries as $sql) {
         $failed++;
         echo "❌ Failed: " . $e->getMessage() . "\n";
     }
+}
+
+// Check if games table already has data (after table creation)
+$checkGames = $conn->query("SELECT COUNT(*) as cnt FROM games");
+$gamesCount = $checkGames ? $checkGames->fetch_assoc()['cnt'] : 0;
+
+if ($gamesCount == 0) {
+    $stmt = $conn->prepare("INSERT IGNORE INTO games (name, slug, provider, color, icon_url, needs_zone_id, display_order) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    foreach ($games as $game) {
+        $stmt->bind_param("ssssssi", $game[0], $game[1], $game[2], $game[3], $game[4], $game[5], $game[6]);
+        $stmt->execute();
+    }
+    echo "✅ Inserted " . count($games) . " games\n";
 }
 
 echo "\n====================\n";
