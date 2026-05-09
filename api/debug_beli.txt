@@ -1,0 +1,109 @@
+[2026-04-12 04:58:17] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:58:33] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:58:33] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:58:49] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:58:49] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:58:49] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 04:59:02] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:59:02] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:59:02] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 04:59:02] CONNECTING TO DB...
+[2026-04-12 04:59:25] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:59:25] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:59:25] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 04:59:25] CONNECTING TO DB...
+[2026-04-12 04:59:25] DB CONNECTED
+[2026-04-12 04:59:41] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:59:41] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:59:41] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 04:59:41] CONNECTING TO DB...
+[2026-04-12 04:59:41] DB CONNECTED
+[2026-04-12 04:59:41] PRODUCT QUERY: found=yes, id=1
+[2026-04-12 04:59:56] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:59:56] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 04:59:56] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 04:59:56] CONNECTING TO DB...
+[2026-04-12 04:59:56] DB CONNECTED
+[2026-04-12 04:59:56] PRODUCT QUERY: found=yes, id=1
+[2026-04-12 04:59:56] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:10:53] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:10:53] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:10:53] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 05:10:53] CONNECTING TO DB...
+[2026-04-12 05:10:53] DB CONNECTED
+[2026-04-12 05:10:53] PRODUCT QUERY: found=yes, id=1
+[2026-04-12 05:10:53] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:11:14] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:11:14] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:11:14] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 05:11:14] CONNECTING TO DB...
+[2026-04-12 05:11:14] DB CONNECTED
+[2026-04-12 05:11:14] PRODUCT QUERY: found=yes, id=1
+[2026-04-12 05:11:14] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:11:38] RAW: [51] {"user_id":1,"no_hp":"081234567890","produk_id":42}
+[2026-04-12 05:11:38] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":42}
+[2026-04-12 05:11:38] PARAMS: user_id=1, no_hp=081234567890, produk_id=42
+[2026-04-12 05:11:38] CONNECTING TO DB...
+[2026-04-12 05:11:38] DB CONNECTED
+[2026-04-12 05:11:38] PRODUCT QUERY: found=yes, id=42
+[2026-04-12 05:11:38] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:11:56] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:11:56] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:11:56] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 05:11:56] CONNECTING TO DB...
+[2026-04-12 05:11:56] DB CONNECTED
+[2026-04-12 05:11:56] PRODUCT QUERY: found=yes, id=1
+[2026-04-12 05:11:56] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:12:34] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:12:34] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:12:34] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 05:12:34] CONNECTING TO DB...
+[2026-04-12 05:12:34] DB CONNECTED
+[2026-04-12 05:12:34] PRODUCT QUERY: found=yes, id=1
+[2026-04-12 05:12:34] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:12:48] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:12:48] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:12:48] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 05:12:48] CONNECTING TO DB...
+[2026-04-12 05:12:48] DB CONNECTED
+[2026-04-12 05:12:48] PRODUCT QUERY: found=yes, id=1
+[2026-04-12 05:12:48] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:13:17] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:13:17] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:13:17] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 05:13:17] CONNECTING TO DB...
+[2026-04-12 05:13:17] DB CONNECTED
+[2026-04-12 05:13:17] PRODUCT QUERY: found=yes, id=1
+[2026-04-12 05:13:17] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:13:51] RAW: [50] {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:13:51] JSON: No error | DATA: {"user_id":1,"no_hp":"081234567890","produk_id":1}
+[2026-04-12 05:13:51] PARAMS: user_id=1, no_hp=081234567890, produk_id=1
+[2026-04-12 05:13:51] CONNECTING TO DB...
+[2026-04-12 05:13:51] DB CONNECTED
+[2026-04-12 05:13:51] PRODUCT QUERY: found=yes, id=1
+[2026-04-12 05:13:51] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:13:51] TRANSACTION INSERTED: id=48
+[2026-04-12 05:15:37] RAW: [67] {"user_id":1,"no_hp":"083175360504","produk_id":42,"csrf_token":""}
+[2026-04-12 05:15:37] JSON: No error | DATA: {"user_id":1,"no_hp":"083175360504","produk_id":42,"csrf_token":""}
+[2026-04-12 05:15:37] PARAMS: user_id=1, no_hp=083175360504, produk_id=42
+[2026-04-12 05:15:37] CONNECTING TO DB...
+[2026-04-12 05:15:37] DB CONNECTED
+[2026-04-12 05:15:37] PRODUCT QUERY: found=yes, id=42
+[2026-04-12 05:15:37] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:15:37] TRANSACTION INSERTED: id=49
+[2026-04-12 05:16:06] RAW: [67] {"user_id":1,"no_hp":"083175360504","produk_id":42,"csrf_token":""}
+[2026-04-12 05:16:06] JSON: No error | DATA: {"user_id":1,"no_hp":"083175360504","produk_id":42,"csrf_token":""}
+[2026-04-12 05:16:06] PARAMS: user_id=1, no_hp=083175360504, produk_id=42
+[2026-04-12 05:16:06] CONNECTING TO DB...
+[2026-04-12 05:16:06] DB CONNECTED
+[2026-04-12 05:16:06] PRODUCT QUERY: found=yes, id=42
+[2026-04-12 05:16:06] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:16:06] TRANSACTION INSERTED: id=50
+[2026-04-12 05:23:42] RAW: [67] {"user_id":1,"no_hp":"083175360504","produk_id":42,"csrf_token":""}
+[2026-04-12 05:23:42] JSON: No error | DATA: {"user_id":1,"no_hp":"083175360504","produk_id":42,"csrf_token":""}
+[2026-04-12 05:23:42] PARAMS: user_id=1, no_hp=083175360504, produk_id=42
+[2026-04-12 05:23:42] CONNECTING TO DB...
+[2026-04-12 05:23:42] DB CONNECTED
+[2026-04-12 05:23:42] PRODUCT QUERY: found=yes, id=42
+[2026-04-12 05:23:42] USER QUERY: found=yes, user_id=1
+[2026-04-12 05:23:42] TRANSACTION INSERTED: id=51
